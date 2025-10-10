@@ -27,15 +27,44 @@ composer install
 
 ### 2. Configurer la clé API Claude
 
+**Vous avez 3 options pour fournir la clé API** (par ordre de priorité) :
+
+#### Option A: Argument CLI (⭐ Recommandé pour Claude Desktop)
+
+```bash
+php bin/server.php --claude-api-key=sk-ant-xxxxxxxxxxxxx
+```
+
+#### Option B: Variable d'environnement
+
+```bash
+export CLAUDE_API_KEY=sk-ant-xxxxxxxxxxxxx
+php bin/server.php
+```
+
+#### Option C: Fichier .env (développement local)
+
 Éditer le fichier `.env` :
 
 ```bash
 CLAUDE_API_KEY=sk-ant-xxxxxxxxxxxxx
 ```
 
+Puis :
+
+```bash
+php bin/server.php
+```
+
+**Priorité de résolution** : CLI argument > Variable ENV > Fichier .env
+
 ### 3. Tester le serveur manuellement
 
 ```bash
+# Avec argument CLI
+php bin/server.php --claude-api-key=sk-ant-xxxxxxxxxxxxx
+
+# Ou avec .env configuré
 php bin/server.php
 ```
 
@@ -47,7 +76,7 @@ Le serveur attend des commandes JSON-RPC sur STDIN. Pour un test rapide :
  echo '{"jsonrpc":"2.0","method":"notifications/initialized"}' && \
  sleep 0.5 && \
  echo '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' && \
- sleep 1) | php bin/server.php
+ sleep 1) | php bin/server.php --claude-api-key=sk-ant-xxxxxxxxxxxxx
 ```
 
 Si vous voyez la liste des tools disponibles, le serveur fonctionne ! ✅
@@ -75,7 +104,25 @@ Si vous voyez la liste des tools disponibles, le serveur fonctionne ! ✅
 
 ### 2. Ajouter la configuration MCP
 
-Éditer `claude_desktop_config.json` et ajouter :
+Éditer `claude_desktop_config.json` :
+
+**Méthode recommandée (avec clé API en argument)** :
+
+```json
+{
+  "mcpServers": {
+    "mcp-ui-element": {
+      "command": "php",
+      "args": [
+        "/Users/jacques/Sites/mcp-ui-element/bin/server.php",
+        "--claude-api-key=sk-ant-xxxxxxxxxxxxx"
+      ]
+    }
+  }
+}
+```
+
+**Alternative (avec fichier .env)** :
 
 ```json
 {
@@ -88,7 +135,9 @@ Si vous voyez la liste des tools disponibles, le serveur fonctionne ! ✅
 }
 ```
 
-⚠️ **Important** : Remplacer `/Users/jacques/Sites/mcp-ui-element` par le chemin **absolu** vers votre projet.
+⚠️ **Important** : 
+- Remplacer `/Users/jacques/Sites/mcp-ui-element` par le chemin **absolu** vers votre projet
+- Remplacer `sk-ant-xxxxxxxxxxxxx` par votre vraie clé API Claude
 
 ### 3. Redémarrer Claude Desktop
 
@@ -130,6 +179,24 @@ Extension VS Code : [Cline](https://marketplace.visualstudio.com/items?itemName=
 ### 2. Configurer MCP
 
 Dans VS Code, ouvrir les paramètres Cline et ajouter le serveur MCP :
+
+**Avec clé API en argument** :
+
+```json
+{
+  "mcpServers": {
+    "mcp-ui-element": {
+      "command": "php",
+      "args": [
+        "/Users/jacques/Sites/mcp-ui-element/bin/server.php",
+        "--claude-api-key=sk-ant-xxxxxxxxxxxxx"
+      ]
+    }
+  }
+}
+```
+
+**Ou avec .env** :
 
 ```json
 {

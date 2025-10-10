@@ -17,7 +17,37 @@ require_once __DIR__ . '/../vendor/autoload.php';
 
 (new Dotenv())->bootEnv(__DIR__ . '/../.env');
 
-$apiKey = $_ENV['CLAUDE_API_KEY'] ?? throw new RuntimeException('CLAUDE_API_KEY not configured in .env');
+/**
+ * Resolve Claude API key with priority chain:
+ * 1. CLI argument (--claude-api-key=xxx)
+ * 2. Environment variable (CLAUDE_API_KEY)
+ * 3. .env file (CLAUDE_API_KEY)
+ * 
+ * @param array $options Parsed CLI options
+ * @return string API key
+ * @throws RuntimeException if no API key found
+ */
+function resolveApiKey(array $options): string {
+    if (isset($options['claude-api-key']) && !empty($options['claude-api-key'])) {
+        return $options['claude-api-key'];
+    }
+    
+    $envKey = getenv('CLAUDE_API_KEY');
+    if ($envKey !== false && !empty($envKey)) {
+        return $envKey;
+    }
+    
+    if (isset($_ENV['CLAUDE_API_KEY']) && !empty($_ENV['CLAUDE_API_KEY'])) {
+        return $_ENV['CLAUDE_API_KEY'];
+    }
+    
+    throw new RuntimeException(
+        'CLAUDE_API_KEY not configured. Use --claude-api-key=xxx or set in .env'
+    );
+}
+
+$options = getopt('', ['claude-api-key:']);
+$apiKey = resolveApiKey($options);
 $knowledgeBasePath = __DIR__ . '/../knowledge-base';
 
 $container = new BasicContainer();
