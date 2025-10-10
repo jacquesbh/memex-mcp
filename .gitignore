@@ -1,0 +1,10 @@
+/vendor/
+/.env.local
+/.env.local.php
+/.env.*.local
+/var/
+/knowledge-base/compiled/*.json
+composer.lock
+.DS_Store
+.idea/
+.vscode/
