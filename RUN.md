@@ -58,7 +58,28 @@ php bin/server.php
 
 **Priorité de résolution** : CLI argument > Variable ENV > Fichier .env
 
-### 3. Tester le serveur manuellement
+### 3. (Optionnel) Configurer un dossier de knowledge base personnalisé
+
+Par défaut, le serveur utilise le dossier `knowledge-base/` du projet. Vous pouvez le changer :
+
+#### Via argument CLI
+
+```bash
+# Chemin absolu
+php bin/server.php --knowledge-base=/shared/company-patterns
+
+# Chemin relatif (résolu depuis le répertoire courant)
+php bin/server.php --knowledge-base=./custom-kb
+```
+
+**Cas d'usage** :
+- Partager une knowledge base entre plusieurs projets
+- Bibliothèque de patterns à l'échelle de l'entreprise
+- Tester avec différents ensembles de patterns
+
+**Note** : Le dossier doit exister et contenir un sous-dossier `patterns/`.
+
+### 4. Tester le serveur manuellement
 
 ```bash
 # Avec argument CLI
@@ -116,6 +137,23 @@ Si vous voyez la liste des tools disponibles, le serveur fonctionne ! ✅
       "args": [
         "/Users/jacques/Sites/mcp-ui-element/bin/server.php",
         "--claude-api-key=sk-ant-xxxxxxxxxxxxx"
+      ]
+    }
+  }
+}
+```
+
+**Avec knowledge base personnalisée** :
+
+```json
+{
+  "mcpServers": {
+    "mcp-ui-element": {
+      "command": "php",
+      "args": [
+        "/Users/jacques/Sites/mcp-ui-element/bin/server.php",
+        "--claude-api-key=sk-ant-xxxxxxxxxxxxx",
+        "--knowledge-base=/shared/company-patterns"
       ]
     }
   }

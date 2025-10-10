@@ -46,9 +46,46 @@ function resolveApiKey(array $options): string {
     );
 }
 
-$options = getopt('', ['claude-api-key:']);
+/**
+ * Resolve knowledge base path with priority chain:
+ * 1. CLI argument (--knowledge-base=/path/to/kb)
+ * 2. Default (__DIR__ . '/../knowledge-base')
+ * 
+ * @param array $options Parsed CLI options
+ * @return string Absolute path to knowledge base directory
+ * @throws RuntimeException if path doesn't exist or isn't accessible
+ */
+function resolveKnowledgeBasePath(array $options): string {
+    $path = isset($options['knowledge-base']) && !empty($options['knowledge-base'])
+        ? $options['knowledge-base']
+        : __DIR__ . '/../knowledge-base';
+    
+    $resolvedPath = realpath($path);
+    
+    if ($resolvedPath === false) {
+        throw new RuntimeException(
+            "Knowledge base path does not exist: {$path}"
+        );
+    }
+    
+    if (!is_dir($resolvedPath)) {
+        throw new RuntimeException(
+            "Knowledge base path is not a directory: {$resolvedPath}"
+        );
+    }
+    
+    if (!is_readable($resolvedPath)) {
+        throw new RuntimeException(
+            "Knowledge base path is not readable: {$resolvedPath}"
+        );
+    }
+    
+    return $resolvedPath;
+}
+
+$options = getopt('', ['claude-api-key:', 'knowledge-base:']);
 $apiKey = resolveApiKey($options);
-$knowledgeBasePath = __DIR__ . '/../knowledge-base';
+$knowledgeBasePath = resolveKnowledgeBasePath($options);
 
 $container = new BasicContainer();
 $container->set(PatternCompilerService::class, new PatternCompilerService());
