@@ -28,7 +28,8 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 1. Clone the repository
 2. Install dependencies:
 ```bash
-composer install
+make install
+# or manually: symfony composer install
 ```
 
 
@@ -258,7 +259,12 @@ User: "Delete the guide old-deprecated-guide"
 
 ## Building the MEMEX Binary
 
-See [`BUILD.md`](BUILD.md) for complete build instructions.
+**Quick build:**
+```bash
+make build
+```
+
+See [`BUILD.md`](BUILD.md) for complete build instructions and manual process.
 
 ## Manual Compilation
 

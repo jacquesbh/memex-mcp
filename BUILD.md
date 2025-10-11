@@ -5,19 +5,42 @@ This guide explains how to build the standalone MEMEX binary.
 ## Prerequisites
 
 - PHP 8.3+
-- Composer dependencies installed (`composer install`)
+- Symfony CLI (for `symfony composer` commands)
+- Composer dependencies installed (`make install`)
 
-## Build Process
+## Quick Build (Recommended)
 
-To build the MEMEX binary, use the `repack` command from the **local** Castor installation:
+Use the Makefile for simplified build process:
 
 ```bash
+make build
+```
+
+This will:
+1. Install Composer dependencies via Symfony CLI
+2. Compile the MEMEX binary using Castor's repack command
+3. Make the binary executable
+4. Display success message
+
+## Manual Build Process
+
+If you prefer manual commands:
+
+```bash
+symfony composer install
 vendor/jolicode/castor/bin/castor repack --app-name=memex --logo-file=.castor.logo.php
 mv memex.linux.phar memex
 chmod +x memex
 ```
 
 The `--logo-file` option includes the custom MEMEX logo in the binary.
+
+## Makefile Commands
+
+- **`make install`**: Install dependencies (requires `composer.lock`)
+- **`make build`**: Full build (install + compile binary)
+- **`make clean`**: Remove binary and vendor directory
+- **`make help`**: Display all available commands
 
 ## What Gets Included
 
