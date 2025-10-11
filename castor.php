@@ -17,11 +17,14 @@ use Symfony\Component\Console\Input\ArgvInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Psr\Log\NullLogger;
 
+use Humbug\SelfUpdate\Updater;
+
 use function Castor\io;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
 const MEMEX_VERSION = '1.0.0';
+const GITHUB_REPO = 'jacquesbh/memex-mcp';
 
 #[AsTask(description: 'Start the MCP server')]
 function server(
@@ -30,18 +33,18 @@ function server(
 ): void
 {
     ApplicationHelper::loadEnvironment();
-    
+
     $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
-    
+
     $container = ServerHelper::buildContainer($kbPath);
     $toolChain = $container->get(MemexToolChain::class)->getChain();
-    
+
     $jsonRpcHandler = ServerHelper::createJsonRpcHandler($toolChain, MEMEX_VERSION);
     $transport = new SymfonyConsoleTransport(
         new ArgvInput(),
         new ConsoleOutput()
     );
-    
+
     $server = new Server($jsonRpcHandler, new NullLogger());
     $server->connect($transport);
 }
@@ -53,13 +56,13 @@ function init(
 ): void
 {
     $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
-    
+
     $dirs = [
         "{$kbPath}/guides",
         "{$kbPath}/contexts",
         "{$kbPath}/.vectors",
     ];
-    
+
     foreach ($dirs as $dir) {
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
@@ -68,7 +71,7 @@ function init(
             io()->note("{$dir} already exists");
         }
     }
-    
+
     io()->success("Knowledge base initialized at: {$kbPath}");
 }
 
@@ -79,13 +82,13 @@ function stats(
 ): void
 {
     $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
-    
+
     $guidesDir = "{$kbPath}/guides";
     $contextsDir = "{$kbPath}/contexts";
-    
+
     $guidesCount = is_dir($guidesDir) ? count(glob($guidesDir . '/*.md') ?: []) : 0;
     $contextsCount = is_dir($contextsDir) ? count(glob($contextsDir . '/*.md') ?: []) : 0;
-    
+
     io()->title('📊 Knowledge Base Statistics');
     io()->writeln("Path: {$kbPath}");
     io()->newLine();
@@ -102,21 +105,21 @@ function guides(
 ): void
 {
     $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
-    
+
     if (!is_dir($kbPath)) {
         io()->error("Knowledge base path does not exist: {$kbPath}");
         exit(1);
     }
-    
+
     io()->title('🔄 Compiling guides');
     io()->text("From: {$kbPath}/guides/");
-    
+
     $compiler = new PatternCompilerService();
     $vectorService = new VectorService($kbPath);
     $guideService = new GuideService($kbPath, $compiler, $vectorService);
-    
+
     $guides = $guideService->list();
-    
+
     io()->success("Successfully compiled " . count($guides) . " guides");
     io()->text("Output: {$kbPath}/compiled/guides.json");
 }
@@ -128,21 +131,21 @@ function contexts(
 ): void
 {
     $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
-    
+
     if (!is_dir($kbPath)) {
         io()->error("Knowledge base path does not exist: {$kbPath}");
         exit(1);
     }
-    
+
     io()->title('🔄 Compiling contexts');
     io()->text("From: {$kbPath}/contexts/");
-    
+
     $compiler = new PatternCompilerService();
     $vectorService = new VectorService($kbPath);
     $contextService = new ContextService($kbPath, $compiler, $vectorService);
-    
+
     $contexts = $contextService->list();
-    
+
     io()->success("Successfully compiled " . count($contexts) . " contexts");
     io()->text("Output: {$kbPath}/compiled/contexts.json");
 }
@@ -154,27 +157,27 @@ function doctor(
 ): void
 {
     io()->title('🏥 MEMEX System Check');
-    
+
     $phpVersion = PHP_VERSION;
     io()->writeln("✓ PHP version: {$phpVersion}");
-    
+
     $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
     $realKbPath = realpath($kbPath);
-    
+
     if ($realKbPath !== false) {
         io()->writeln("✓ Knowledge base: {$realKbPath}");
     } else {
         io()->writeln("✗ Knowledge base: {$kbPath} (not found)");
     }
-    
+
     io()->newLine();
-    
+
     $checks = [
         "{$kbPath}/guides" => is_dir("{$kbPath}/guides"),
         "{$kbPath}/contexts" => is_dir("{$kbPath}/contexts"),
         "{$kbPath}/.vectors" => is_dir("{$kbPath}/.vectors"),
     ];
-    
+
     $allGood = true;
     foreach ($checks as $path => $exists) {
         $status = $exists ? '✓' : '✗';
@@ -183,12 +186,79 @@ function doctor(
             $allGood = false;
         }
     }
-    
+
     io()->newLine();
-    
+
     if ($allGood) {
         io()->success('System check complete - all healthy!');
     } else {
         io()->warning("Some checks failed - run `castor init --knowledge-base={$kbPath}` to initialize missing directories");
+    }
+}
+
+#[AsTask(description: 'Check for MEMEX updates')]
+function checkUpdate(): void
+{
+    if (!\Phar::running(false)) {
+        io()->warning('Updates only available for PHAR builds');
+        io()->note('Current version: ' . MEMEX_VERSION);
+        return;
+    }
+
+    io()->title('🔍 Checking for updates');
+    io()->writeln('Current version: ' . MEMEX_VERSION);
+
+    $updater = new Updater(null, false);
+    $updater->setStrategy(Updater::STRATEGY_SHA256);
+    $updater->getStrategy()->setPharUrl('https://github.com/' . GITHUB_REPO . '/releases/latest/download/memex');
+    $updater->getStrategy()->setVersionUrl('https://github.com/' . GITHUB_REPO . '/releases/latest/download/memex.sha256');
+
+    try {
+        if ($updater->hasUpdate()) {
+            io()->success('Update available!');
+            io()->note('Run "./memex self-update" to update');
+        } else {
+            io()->success('You are running the latest version');
+        }
+    } catch (\Exception $e) {
+        io()->error("Failed to check for updates: {$e->getMessage()}");
+    }
+}
+
+#[AsTask(description: 'Update MEMEX to the latest version')]
+function selfUpdate(): void
+{
+    if (!\Phar::running(false)) {
+        io()->warning('Self-update only available for PHAR builds');
+        io()->note('Please pull the latest changes from git or download the latest release');
+        return;
+    }
+
+    io()->title('🚀 Self-updating MEMEX');
+    io()->writeln('Current version: ' . MEMEX_VERSION);
+
+    $updater = new Updater(null, false);
+    $updater->setStrategy(Updater::STRATEGY_SHA256);
+    $updater->getStrategy()->setPharUrl('https://github.com/' . GITHUB_REPO . '/releases/latest/download/memex');
+    $updater->getStrategy()->setVersionUrl('https://github.com/' . GITHUB_REPO . '/releases/latest/download/memex.sha256');
+
+    try {
+        if ($updater->hasUpdate()) {
+            io()->writeln('Downloading update...');
+
+            if ($updater->update()) {
+                $new = $updater->getNewVersion();
+                $old = $updater->getOldVersion();
+                io()->success("Successfully updated!");
+                io()->writeln("Previous: SHA-256 {$old}");
+                io()->writeln("Current:  SHA-256 {$new}");
+            } else {
+                io()->error('Update failed - no changes made');
+            }
+        } else {
+            io()->success('Already running the latest version');
+        }
+    } catch (\Exception $e) {
+        io()->error("Update failed: {$e->getMessage()}");
     }
 }

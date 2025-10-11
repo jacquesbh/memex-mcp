@@ -7,23 +7,42 @@ MCP server for managing AI knowledge base (guides + contexts). See [README.md](R
 ## Prerequisites
 
 - PHP 8.3+
-- Composer installed
 - **Ollama** with `nomic-embed-text` model ([Install](https://ollama.com))
 - MCP-compatible client:
   - **Claude Desktop** (recommended)
   - **Cline** (VS Code extension)
   - Any MCP-compatible client
 
-## Initial Setup
+## Installation
 
-### 1. Install Dependencies
+### Option 1: Download Binary (Recommended)
+
+```bash
+# Download latest release
+curl -L https://github.com/jacquesbh/memex-mcp/releases/latest/download/memex -o memex
+chmod +x memex
+
+# Verify installation
+./memex --version
+
+# Check for updates anytime
+./memex check-update
+
+# Update to latest version
+./memex self-update
+```
+
+### Option 2: Build from Source
 
 ```bash
 cd /path/to/memex-mcp
 composer install
+make build
 ```
 
-### 2. Setup Ollama
+## Initial Setup
+
+### 1. Setup Ollama
 
 MEMEX uses Ollama for semantic search. Install from [ollama.com](https://ollama.com), then:
 
@@ -35,7 +54,7 @@ ollama pull nomic-embed-text
 ollama list
 ```
 
-### 3. (Optional) Configure Custom Knowledge Base
+### 2. (Optional) Configure Custom Knowledge Base
 
 By default, the server uses `~/.memex/knowledge-base`. You can change this:
 
@@ -54,7 +73,7 @@ castor server --knowledge-base=./custom-kb
 
 **Note**: The directory must exist and contain `guides/` and `contexts/` subdirectories.
 
-### 4. Test the Server Manually
+### 3. Test the Server Manually
 
 **With Castor (recommended):**
 ```bash
@@ -309,6 +328,56 @@ castor stats
 - Share KB across projects with `--knowledge-base`
 - Use tags for organization
 - Version KB with Git
+
+---
+
+## Updating MEMEX
+
+### Check for Updates
+
+```bash
+./memex check-update
+```
+
+This compares your local version against the latest GitHub Release.
+
+### Self-Update
+
+```bash
+./memex self-update
+```
+
+MEMEX will:
+1. Download the latest binary from GitHub Releases
+2. Verify integrity using SHA-256 checksum
+3. Replace the current binary atomically
+4. Display old and new version hashes
+
+**Requirements:**
+- Internet connection
+- Write permissions on the binary file
+- Only works with PHAR builds (not when running from source)
+
+### Manual Update
+
+If self-update fails, download manually:
+
+```bash
+# Backup current version
+cp memex memex.backup
+
+# Download latest
+curl -L https://github.com/jacquesbh/memex-mcp/releases/latest/download/memex -o memex
+chmod +x memex
+
+# Verify
+./memex --version
+```
+
+**Rollback** if needed:
+```bash
+mv memex.backup memex
+```
 
 ---
 

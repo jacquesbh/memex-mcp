@@ -57,6 +57,24 @@ make build                      # Build binary
 
 Complete setup instructions: [USAGE.md](USAGE.md)
 
+## Installation
+
+### Download Latest Release
+
+```bash
+curl -L https://github.com/jacquesbh/memex-mcp/releases/latest/download/memex -o memex
+chmod +x memex
+./memex --version
+```
+
+### Self-Update
+
+Once installed, keep MEMEX up-to-date:
+
+```bash
+./memex self-update
+```
+
 
 
 ## Configuration

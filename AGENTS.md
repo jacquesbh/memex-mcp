@@ -8,13 +8,17 @@
 **Prod:** `./memex server` (replace `castor` with `./memex`)
 **Testing:** `make test` (PHPUnit), `make test-mcp` (MCP integration)
 **Build:** `make build` (creates binary)
+**Update:** `./memex --version`, `./memex check-update`, `./memex self-update`
 
 Complete command reference: [USAGE.md](USAGE.md)
 
 ## CI/CD
 
 **CI:** `.github/workflows/ci.yml` - Runs on push/PR: test → build → test-mcp
-**Release:** `.github/workflows/release.yml` - Triggered on `v*` tags, creates GitHub Release with binary
+**Release:** `.github/workflows/release.yml` - Triggered on `v*` tags, creates GitHub Release with:
+  - `memex` binary
+  - `memex.sha256` (for self-update verification)
+  - `memex.sha512` (for manual verification)
 
 ## Code Style (PHP 8.3+, Symfony MCP SDK)
 - **Strict types**: Always use `declare(strict_types=1);` at top of file

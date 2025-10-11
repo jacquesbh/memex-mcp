@@ -14,7 +14,7 @@ build: install ## Build the MEMEX binary (installs dependencies first)
 	mv memex.linux.phar memex
 	chmod +x memex
 	@echo "\n✅ MEMEX binary created successfully!"
-	@echo "Test it with: ./memex list"
+	@echo "Test it with: ./memex --version"
 
 test: vendor ## Run PHPUnit unit tests
 	vendor/bin/phpunit

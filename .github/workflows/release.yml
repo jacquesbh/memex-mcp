@@ -19,22 +19,59 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.4'
           extensions: mbstring, curl, json
           tools: symfony-cli, castor, box
       
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
       - name: Build MEMEX binary
         run: make build
+      
+      - name: Generate SHA-256 checksum (for self-update)
+        run: |
+          sha256sum memex | awk '{print $1}' > memex.sha256
+          cat memex.sha256
+      
+      - name: Generate SHA-512 checksum (for verification)
+        run: |
+          sha512sum memex > memex.sha512
+          cat memex.sha512
       
       - name: Verify binary
         run: |
           test -f memex
           chmod +x memex
-          ./memex --version || echo "MEMEX binary built successfully"
+          ./memex --version
       
-      - name: Upload binary to release
+      - name: Update Release
         uses: softprops/action-gh-release@v2
         with:
-          files: memex
+          files: |
+            memex
+            memex.sha256
+            memex.sha512
+          append_body: true
+          body: |
+            
+            ### Installation
+            ```bash
+            curl -L https://github.com/jacquesbh/memex-mcp/releases/download/${{ steps.version.outputs.VERSION }}/memex -o memex
+            chmod +x memex
+            ./memex --version
+            ```
+            
+            ### Verification
+            ```bash
+            sha512sum -c memex.sha512
+            ```
+            
+            ### Self-Update
+            Once installed, you can update MEMEX with:
+            ```bash
+            ./memex self-update
+            ```
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
