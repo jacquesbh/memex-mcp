@@ -1,5 +1,14 @@
 # MEMEX
 
+```
+ ███╗   ███╗███████╗███╗   ███╗███████╗██╗  ██╗
+ ████╗ ████║██╔════╝████╗ ████║██╔════╝╚██╗██╔╝
+ ██╔████╔██║█████╗  ██╔████╔██║█████╗   ╚███╔╝ 
+ ██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║██╔══╝   ██╔██╗ 
+ ██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║███████╗██╔╝ ██╗
+ ╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝
+```
+
 **MEM**ory + ind**EX** - A Model Context Protocol (MCP) server for managing your knowledge base of **guides** and **contexts**.
 
 Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Memex) (1945), a theoretical proto-hypertext system for storing and retrieving knowledge. Just as Bush imagined a device to augment human memory, MEMEX augments AI memory by providing persistent access to technical guides and reusable contexts (prompts/personas).
@@ -387,4 +396,4 @@ Update guides and contexts directly from Claude conversations as knowledge evolv
 
 ---
 
-**Built with ❤️ for AI-powered development workflows**
+**Created by [Jacques Bodin-Hullin](https://github.com/jacquesbh) @ [MonsieurBiz](https://monsieurbiz.com) with [OpenCode](https://opencode.ai), a bit of AI, and a lot of time mastering AI**
