@@ -9,3 +9,6 @@ composer.lock
 .DS_Store
 .idea/
 .vscode/
+.castor.stub.php
+memex
+memex.linux.phar

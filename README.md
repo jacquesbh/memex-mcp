@@ -33,44 +33,66 @@ composer install
 
 
 
-## Usage
+## Quick Start
 
 ### Running the MCP Server
 
+**Development (with Castor):**
 ```bash
-php bin/server.php
+castor server
 ```
 
-With custom knowledge base:
+**Production (with memex binary):**
 ```bash
-php bin/server.php --knowledge-base=/path/to/shared/kb
+./memex server
 ```
+
+**With custom knowledge base:**
+```bash
+castor server --knowledge-base=/path/to/shared/kb
+# or
+./memex server --knowledge-base=/path/to/shared/kb
+```
+
+For complete usage instructions, see [`USAGE.md`](USAGE.md).
 
 ### Claude Desktop Configuration
 
 Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
+**Option 1: Using memex binary (recommended):**
 ```json
 {
   "mcpServers": {
     "memex": {
-      "command": "php",
-      "args": ["/absolute/path/to/memex-mcp/bin/server.php"]
+      "command": "/absolute/path/to/memex-mcp/memex",
+      "args": ["server"]
     }
   }
 }
 ```
 
-With custom knowledge base:
+**Option 2: Using Castor (development):**
 ```json
 {
   "mcpServers": {
     "memex": {
-      "command": "php",
-      "args": [
-        "/absolute/path/to/memex-mcp/bin/server.php",
-        "--knowledge-base=/shared/company-kb"
-      ]
+      "command": "/absolute/path/to/memex-mcp/vendor/bin/castor",
+      "args": ["server"]
+    }
+  }
+}
+```
+
+
+
+With custom knowledge base (any option):
+```json
+{
+  "mcpServers": {
+    "memex": {
+      "command": "/absolute/path/to/memex-mcp/memex",
+      "args": ["server", "--knowledge-base=/shared/company-kb"]
     }
   }
 }
@@ -212,10 +234,14 @@ User: "Load the MonsieurBiz context and give me the guide for creating a plugin"
 
 ```bash
 # Project A
-php bin/server.php --knowledge-base=/shared/company-kb
+castor server --knowledge-base=/shared/company-kb
+# or
+./memex server --knowledge-base=/shared/company-kb
 
 # Project B
-php bin/server.php --knowledge-base=/shared/company-kb
+castor server --knowledge-base=/shared/company-kb
+# or
+./memex server --knowledge-base=/shared/company-kb
 
 # Both projects share the same guides and contexts!
 ```
@@ -230,17 +256,22 @@ User: "Delete the guide old-deprecated-guide"
 → delete_guide removes it and recompiles index
 ```
 
+## Building the MEMEX Binary
+
+See [`BUILD.md`](BUILD.md) for complete build instructions.
+
 ## Manual Compilation
 
-Compile guides:
+**With Castor/MEMEX:**
 ```bash
-php bin/compile-guides.php
+castor compile:guides
+castor compile:contexts
+# or
+./memex compile:guides
+./memex compile:contexts
 ```
 
-Compile contexts:
-```bash
-php bin/compile-contexts.php
-```
+
 
 ## Why MEMEX?
 
@@ -257,6 +288,7 @@ MEMEX brings this vision to AI development:
 ## Architecture
 
 ```
+castor.php                         # CLI entry point (all functionality)
 src/
 ├── Service/
 │   ├── ContentService.php        # Abstract base for guides/contexts
@@ -275,6 +307,13 @@ src/
     ├── DeleteContextTool.php
     └── SearchTool.php
 ```
+
+### CLI Layer (Castor)
+
+MEMEX uses [Castor](https://github.com/jolicode/castor) as its CLI framework:
+- **Development**: Run `castor <command>` for interactive development
+- **Production**: Build with `castor build` to create standalone `./memex` binary
+- **Distribution**: Single PHAR file with all dependencies included
 
 ## Security
 

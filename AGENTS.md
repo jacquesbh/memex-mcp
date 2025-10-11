@@ -1,10 +1,22 @@
 # Agent Guidelines for MEMEX
 
 ## Commands
-- **Run server**: `php bin/server.php`
-- **Compile guides**: `php bin/compile-guides.php`
-- **Compile contexts**: `php bin/compile-contexts.php`
-- **No tests configured** - verify changes by running the server
+
+### Development (Castor CLI)
+- **Run server**: `castor server`
+- **Compile guides**: `castor compile:guides`
+- **Compile contexts**: `castor compile:contexts`
+- **Initialize KB**: `castor init`
+- **View stats**: `castor stats`
+- **System check**: `castor doctor`
+- **List all commands**: `castor list`
+
+### Production (MEMEX Binary)
+- **Build binary**: See `BUILD.md` for instructions
+- **Run server**: `./memex server`
+- **All commands**: Replace `castor` with `./memex`
+
+**No tests configured** - verify changes by running the server
 
 ## Code Style (PHP 8.3+, Symfony MCP SDK)
 - **Strict types**: Always use `declare(strict_types=1);` at top of file
