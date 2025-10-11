@@ -36,6 +36,14 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 - **Node.js 20+** (for MCP Inspector integration tests)
 - **Built with Symfony MCP SDK** (official Symfony AI SDK)
 
+## Supported Operating Systems
+
+- **macOS** ✅
+- **Linux** ✅
+- **Windows** ❌ (not supported)
+
+**Default knowledge base location:** `~/.memex/knowledge-base`
+
 ## Installation
 
 1. Clone the repository

@@ -57,4 +57,23 @@ final class ListContextsToolExecutorTest extends TestCase
         $this->assertSame(0, $data['total']);
         $this->assertEmpty($data['contexts']);
     }
+
+
+
+    public function testCallHandlesRuntimeException(): void
+    {
+        $service = $this->createMock(ContextService::class);
+        $service->method('list')
+            ->willThrowException(new \RuntimeException('Database error'));
+        
+        $executor = new ListContextsToolExecutor($service);
+        $toolCall = new ToolCall('test-id', 'list_contexts', []);
+        
+        $result = $executor->call($toolCall);
+        
+        $this->assertTrue($result->isError);
+        $data = json_decode($result->result, true);
+        $this->assertFalse($data['success']);
+        $this->assertSame('Database error', $data['error']);
+    }
 }

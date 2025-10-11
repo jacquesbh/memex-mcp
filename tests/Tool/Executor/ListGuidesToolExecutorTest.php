@@ -57,4 +57,23 @@ final class ListGuidesToolExecutorTest extends TestCase
         $this->assertSame(0, $data['total']);
         $this->assertEmpty($data['guides']);
     }
+
+
+
+    public function testCallHandlesRuntimeException(): void
+    {
+        $service = $this->createMock(GuideService::class);
+        $service->method('list')
+            ->willThrowException(new \RuntimeException('Database error'));
+        
+        $executor = new ListGuidesToolExecutor($service);
+        $toolCall = new ToolCall('test-id', 'list_guides', []);
+        
+        $result = $executor->call($toolCall);
+        
+        $this->assertTrue($result->isError);
+        $data = json_decode($result->result, true);
+        $this->assertFalse($data['success']);
+        $this->assertSame('Database error', $data['error']);
+    }
 }

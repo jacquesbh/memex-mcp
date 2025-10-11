@@ -1,4 +1,4 @@
-.PHONY: help install clean build test test-mcp
+.PHONY: help install clean build test test-mcp coverage
 
 help: ## Display this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -21,6 +21,11 @@ test: vendor ## Run PHPUnit unit tests
 
 test-mcp: ## Run MCP Inspector integration tests
 	@bash bin/test-mcp.sh
+
+coverage: vendor ## Generate HTML coverage report in /tmp/coverage
+	XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-html=/tmp/coverage
+	@echo "\n✅ Coverage report generated at: /tmp/coverage/index.html"
+	@echo "Open with: open /tmp/coverage/index.html"
 
 vendor: composer.lock
 	symfony composer install

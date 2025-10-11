@@ -41,7 +41,7 @@ ollama list
 
 ### 3. (Optional) Configure Custom Knowledge Base
 
-By default, the server uses the `knowledge-base/` directory. You can change this:
+By default, the server uses `~/.memex/knowledge-base`. You can change this:
 
 ```bash
 # Absolute path

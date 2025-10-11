@@ -11,9 +11,12 @@ final readonly class ApplicationHelper
 {
     public static function getDefaultKnowledgeBasePath(): string
     {
-        return \Phar::running(false) !== '' 
-            ? getcwd() . '/memex-knowledge-base'
-            : dirname(__DIR__, 2) . '/memex-knowledge-base';
+        $home = $_SERVER['HOME'] ?? getenv('HOME');
+        if ($home === false || $home === '') {
+            throw new RuntimeException('Unable to determine home directory');
+        }
+        
+        return $home . '/.memex/knowledge-base';
     }
 
     public static function resolveKnowledgeBasePath(?string $path): string
