@@ -135,8 +135,6 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 }
 ```
 
-
-
 With custom knowledge base (any option):
 ```json
 {
@@ -144,6 +142,49 @@ With custom knowledge base (any option):
     "memex": {
       "command": "/absolute/path/to/memex-mcp/memex",
       "args": ["server", "--knowledge-base=/shared/company-kb"]
+    }
+  }
+}
+```
+
+### OpenCode Configuration
+
+Add to `~/.config/opencode/opencode.json`:
+
+**Option 1: Using memex binary (recommended):**
+```json
+{
+  "mcp": {
+    "memex-mcp_Knowledge-base-for-guides-and-contexts": {
+      "type": "local",
+      "command": ["/absolute/path/to/memex-mcp/memex", "server"],
+      "enabled": true
+    }
+  }
+}
+```
+
+**Option 2: Using Castor (development):**
+```json
+{
+  "mcp": {
+    "memex-mcp_Knowledge-base-for-guides-and-contexts": {
+      "type": "local",
+      "command": ["/absolute/path/to/memex-mcp/vendor/bin/castor", "server"],
+      "enabled": true
+    }
+  }
+}
+```
+
+With custom knowledge base (any option):
+```json
+{
+  "mcp": {
+    "memex-mcp_Knowledge-base-for-guides-and-contexts": {
+      "type": "local",
+      "command": ["/absolute/path/to/memex-mcp/memex", "server", "--knowledge-base=/shared/company-kb"],
+      "enabled": true
     }
   }
 }
@@ -368,7 +409,7 @@ src/
 
 MEMEX uses [Castor](https://github.com/jolicode/castor) as its CLI framework:
 - **Development**: Run `castor <command>` for interactive development
-- **Production**: Build with `castor build` to create standalone `./memex` binary
+- **Production**: Build with `vendor/jolicode/castor/bin/castor repack` to create standalone `./memex` binary
 - **Distribution**: Single PHAR file with all dependencies included
 
 ## Security
@@ -396,30 +437,6 @@ Share guides and contexts across multiple projects using `--knowledge-base`.
 
 ### 5. Living Documentation
 Update guides and contexts directly from Claude conversations as knowledge evolves.
-
-## Status: ✅ Complete
-
-### Phase 1-2 ✅
-- ✅ Original guide generation tool (Claude AI powered)
-- ✅ Basic knowledge base with patterns
-
-### Phase 3 ✅ (Current)
-- ✅ Dual content types (guides + contexts)
-- ✅ 8 new MCP tools for full CRUD operations
-- ✅ Abstract service architecture (DRY, extensible)
-- ✅ Automatic compilation system
-- ✅ Custom knowledge base path support
-- ✅ Security validations
-- ✅ Markdown frontmatter support
-
-## Next Steps (Future)
-
-**Phase 4**: Enhanced features
-- Semantic search with embeddings
-- Version control for guides/contexts
-- Import/export functionality
-- Template system for quick guide creation
-- Guide validation and linting
 
 ## Contributing
 
