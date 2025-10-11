@@ -12,3 +12,5 @@ composer.lock
 .castor.stub.php
 memex
 memex.linux.phar
+.phpunit.cache
+memex-knowledge-base

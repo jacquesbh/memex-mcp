@@ -10,6 +10,7 @@ use Memex\Service\PatternCompilerService;
 use Memex\Service\VectorService;
 use Memex\Tool\MemexToolChain;
 use Psr\Log\NullLogger;
+use Symfony\AI\McpSdk\Capability\ToolChain;
 use Symfony\AI\McpSdk\Message\Factory;
 use Symfony\AI\McpSdk\Server\JsonRpcHandler;
 use Symfony\AI\McpSdk\Server\NotificationHandler\InitializedHandler;
@@ -51,7 +52,7 @@ final readonly class ServerHelper
         return $container;
     }
 
-    public static function createJsonRpcHandler(array $toolChain, string $version = '1.0.0'): JsonRpcHandler
+    public static function createJsonRpcHandler(ToolChain $toolChain, string $version = '1.0.0'): JsonRpcHandler
     {
         return new JsonRpcHandler(
             new Factory(),

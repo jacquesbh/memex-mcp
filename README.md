@@ -31,6 +31,7 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 - PHP 8.3+
 - Composer
 - **Ollama** with `nomic-embed-text` model (for semantic search) - [Install Ollama](https://ollama.com)
+- **Node.js 20+** (for MCP Inspector integration tests)
 - **Built with Symfony MCP SDK** (official Symfony AI SDK)
 
 ## Installation
@@ -46,6 +47,30 @@ make install
 # Install from https://ollama.com then:
 ollama pull nomic-embed-text
 ```
+
+## Testing
+
+**PHPUnit Tests (105 tests, 281 assertions):**
+```bash
+make test
+```
+
+**MCP Inspector Integration Tests:**
+```bash
+# Build binary first
+make build
+
+# Initialize knowledge base
+./memex init
+
+# Run MCP integration tests
+make test-mcp
+```
+
+**Prerequisites for MCP tests:**
+- Node.js 20+ installed
+- `memex` binary built (`make build`)
+- Tests use `@modelcontextprotocol/inspector` (auto-installed via npx)
 
 
 

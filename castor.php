@@ -25,7 +25,7 @@ const MEMEX_VERSION = '1.0.0';
 
 #[AsTask(description: 'Start the MCP server')]
 function server(
-    #[AsOption(description: 'Path to knowledge base directory', shortcut: 'kb')]
+    #[AsOption(shortcut: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null
 ): void
 {

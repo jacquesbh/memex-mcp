@@ -1,20 +1,26 @@
-.PHONY: help install clean build
+.PHONY: help install clean build test test-mcp
 
-help: ## Affiche cette aide
+help: ## Display this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
-install: vendor ## Installe les dépendances Composer
+install: vendor ## Install Composer dependencies
 
-clean: ## Nettoie les fichiers générés (binaire et vendor)
+clean: ## Clean generated files (binary and vendor)
 	rm -f memex memex.linux.phar
 	rm -rf vendor/
 
-build: install ## Compile le binaire MEMEX (installe les dépendances d'abord)
+build: install ## Build the MEMEX binary (installs dependencies first)
 	vendor/jolicode/castor/bin/castor repack --app-name=memex --logo-file=.castor.logo.php
 	mv memex.linux.phar memex
 	chmod +x memex
-	@echo "\n✅ Binaire memex créé avec succès !"
-	@echo "Testez-le avec: ./memex list"
+	@echo "\n✅ MEMEX binary created successfully!"
+	@echo "Test it with: ./memex list"
+
+test: vendor ## Run PHPUnit unit tests
+	vendor/bin/phpunit
+
+test-mcp: ## Run MCP Inspector integration tests
+	@bash bin/test-mcp.sh
 
 vendor: composer.lock
 	symfony composer install

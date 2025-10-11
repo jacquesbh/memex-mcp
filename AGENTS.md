@@ -16,7 +16,11 @@
 - **Run server**: `./memex server`
 - **All commands**: Replace `castor` with `./memex`
 
-**No tests configured** - verify changes by running the server
+### Testing
+- **Run PHPUnit tests**: `make test` or `vendor/bin/phpunit`
+- **Run MCP integration tests**: `make test-mcp` (requires Node.js 20+)
+- **Test specific file**: `vendor/bin/phpunit tests/Service/GuideServiceTest.php`
+- **Test with output**: `vendor/bin/phpunit --testdox`
 
 ## Code Style (PHP 8.3+, Symfony MCP SDK)
 - **Strict types**: Always use `declare(strict_types=1);` at top of file
