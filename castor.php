@@ -216,7 +216,7 @@ function checkUpdate(): void
     try {
         if ($updater->hasUpdate()) {
             io()->success('Update available!');
-            io()->note('Run "./memex self-update" to update');
+            io()->note('Run "memex self-update" to update');
         } else {
             io()->success('You are running the latest version');
         }
