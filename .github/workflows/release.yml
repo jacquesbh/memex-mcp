@@ -21,7 +21,7 @@ jobs:
         with:
           php-version: '8.3'
           extensions: mbstring, curl, json
-          tools: symfony-cli, castor
+          tools: symfony-cli, castor, box
       
       - name: Build MEMEX binary
         run: make build
@@ -32,25 +32,9 @@ jobs:
           chmod +x memex
           ./memex --version || echo "MEMEX binary built successfully"
       
-      - name: Create Release
+      - name: Upload binary to release
         uses: softprops/action-gh-release@v2
         with:
           files: memex
-          body: |
-            ## MEMEX ${{ github.ref_name }}
-            
-            Self-contained binary for MEMEX MCP Server.
-            
-            ### Installation
-            ```bash
-            curl -L https://github.com/jacquesbh/memex-mcp/releases/download/${{ github.ref_name }}/memex -o memex
-            chmod +x memex
-            ./memex server
-            ```
-            
-            ### Usage
-            See [README.md](https://github.com/jacquesbh/memex-mcp/blob/master/README.md) for configuration.
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
