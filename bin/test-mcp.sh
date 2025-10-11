@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -eu
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -35,11 +35,21 @@ fail() {
 call_tool() {
     local tool_name="$1"
     local arguments="$2"
-    
-    echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":$arguments}}" | \
-        npx --yes @modelcontextprotocol/inspector --cli "$MEMEX_BIN" server --knowledge-base="$TEST_KB" 2>/dev/null | \
+
+    local cmd=(npx --yes @modelcontextprotocol/inspector 
+               --cli "$MEMEX_BIN" server --knowledge-base="$TEST_KB"
+               --method tools/call
+               --tool-name "$tool_name")
+
+    if [[ "$arguments" != "{}" ]]; then
+        while IFS= read -r line; do
+            cmd+=(--tool-arg "$line")
+        done < <(echo "$arguments" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
+    fi
+
+    "${cmd[@]}" 2>/dev/null | \
         grep -v "^>" | \
-        jq -c '.result.content[0].text // empty' 2>/dev/null | \
+        jq -c '.content[0].text // empty' 2>/dev/null | \
         sed 's/^"//;s/"$//' | \
         sed 's/\\n/\n/g' | \
         sed 's/\\"/"/g'
@@ -47,14 +57,14 @@ call_tool() {
 
 echo -e "\n${YELLOW}Test 1: List guides (should be empty)${NC}"
 output=$(call_tool "list_guides" "{}")
-if echo "$output" | grep -q "No guides found"; then
+if echo "$output" | grep -q '"total":0'; then
     pass "list_guides returns empty"
 else
     fail "list_guides should be empty" "$output"
 fi
 
 echo -e "\n${YELLOW}Test 2: Write guide${NC}"
-output=$(call_tool "write_guide" '{"slug":"test-guide","title":"Test Guide","content":"This is a test guide for CI/CD"}')
+output=$(call_tool "write_guide" '{"title":"Test Guide","content":"This is a test guide for CI/CD"}')
 if echo "$output" | grep -q "test-guide"; then
     pass "write_guide created test-guide"
 else
@@ -70,7 +80,7 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 4: Get guide${NC}"
-output=$(call_tool "get_guide" '{"slug":"test-guide"}')
+output=$(call_tool "get_guide" '{"query":"test-guide"}')
 if echo "$output" | grep -q "Test Guide"; then
     pass "get_guide retrieved test-guide"
 else
@@ -78,7 +88,7 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 5: Write context${NC}"
-output=$(call_tool "write_context" '{"slug":"test-context","title":"Test Context","content":"This is a test context for CI/CD"}')
+output=$(call_tool "write_context" '{"name":"Test Context","content":"This is a test context for CI/CD"}')
 if echo "$output" | grep -q "test-context"; then
     pass "write_context created test-context"
 else
@@ -94,7 +104,7 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 7: Get context${NC}"
-output=$(call_tool "get_context" '{"slug":"test-context"}')
+output=$(call_tool "get_context" '{"query":"test-context"}')
 if echo "$output" | grep -q "Test Context"; then
     pass "get_context retrieved test-context"
 else
@@ -111,7 +121,7 @@ fi
 
 echo -e "\n${YELLOW}Test 9: Delete guide${NC}"
 output=$(call_tool "delete_guide" '{"slug":"test-guide"}')
-if echo "$output" | grep -q "deleted"; then
+if echo "$output" | grep -q '"success":true'; then
     pass "delete_guide removed test-guide"
 else
     fail "delete_guide failed" "$output"
@@ -119,7 +129,7 @@ fi
 
 echo -e "\n${YELLOW}Test 10: Delete context${NC}"
 output=$(call_tool "delete_context" '{"slug":"test-context"}')
-if echo "$output" | grep -q "deleted"; then
+if echo "$output" | grep -q '"success":true'; then
     pass "delete_context removed test-context"
 else
     fail "delete_context failed" "$output"
@@ -127,7 +137,7 @@ fi
 
 echo -e "\n${YELLOW}Test 11: List guides (should be empty again)${NC}"
 output=$(call_tool "list_guides" "{}")
-if echo "$output" | grep -q "No guides found"; then
+if echo "$output" | grep -q '"total":0'; then
     pass "list_guides empty after cleanup"
 else
     fail "list_guides should be empty" "$output"
@@ -135,7 +145,7 @@ fi
 
 echo -e "\n${YELLOW}Test 12: List contexts (should be empty again)${NC}"
 output=$(call_tool "list_contexts" "{}")
-if echo "$output" | grep -q "No contexts found"; then
+if echo "$output" | grep -q '"total":0'; then
     pass "list_contexts empty after cleanup"
 else
     fail "list_contexts should be empty" "$output"
