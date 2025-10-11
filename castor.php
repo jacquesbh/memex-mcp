@@ -23,7 +23,7 @@ use function Castor\io;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-const MEMEX_VERSION = '1.0.0-rc2';
+const MEMEX_VERSION = 'development'; // This version is changed during the rebuild of the binary in the CI
 const GITHUB_REPO = 'jacquesbh/memex-mcp';
 
 #[AsTask(description: 'Start the MCP server')]

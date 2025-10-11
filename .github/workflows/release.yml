@@ -27,6 +27,11 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
       
+      - name: Update version in castor.php
+        run: |
+          sed -i "s/const MEMEX_VERSION = '.*';/const MEMEX_VERSION = '${{ steps.version.outputs.VERSION }}';/" castor.php
+          grep "const MEMEX_VERSION" castor.php
+      
       - name: Build MEMEX binary
         run: make build
       

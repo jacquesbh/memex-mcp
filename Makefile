@@ -10,7 +10,8 @@ clean: ## Clean generated files (binary and vendor)
 	rm -rf vendor/
 
 build: install ## Build the MEMEX binary (installs dependencies first)
-	vendor/jolicode/castor/bin/castor repack --app-name=memex --logo-file=.castor.logo.php
+	$(eval VERSION := $(shell grep "const MEMEX_VERSION" castor.php | sed "s/.*'\(.*\)'.*/\1/"))
+	vendor/jolicode/castor/bin/castor repack --app-name=memex --app-version=$(VERSION) --logo-file=.castor.logo.php
 	mv memex.linux.phar memex
 	chmod +x memex
 	@echo "\n✅ MEMEX binary created successfully!"
