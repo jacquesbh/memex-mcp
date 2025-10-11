@@ -20,7 +20,7 @@ jobs:
           php-version: '8.3'
           extensions: mbstring, curl, json
           tools: symfony-cli, castor
-          coverage: none
+          coverage: xdebug
       
       - name: Cache Composer packages
         uses: actions/cache@v4
@@ -36,8 +36,8 @@ jobs:
       - name: Install dev dependencies
         run: composer require --dev phpunit/phpunit:^11.5
       
-      - name: Run PHPUnit tests
-        run: make test
+      - name: Run PHPUnit tests with coverage
+        run: vendor/bin/phpunit --coverage-text
   
   build:
     name: Build Binary
@@ -77,6 +77,25 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Cache Ollama models
+        id: cache-ollama
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ${{ runner.os }}-ollama-nomic-embed-text
+      
+      - name: Setup Ollama
+        uses: ai-action/setup-ollama@v1
+      
+      - name: Start Ollama service
+        run: |
+          ollama serve &
+          sleep 5
+      
+      - name: Pull embedding model
+        if: steps.cache-ollama.outputs.cache-hit != 'true'
+        run: ollama pull nomic-embed-text
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
