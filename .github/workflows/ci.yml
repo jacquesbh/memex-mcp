@@ -30,6 +30,25 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-php-
       
+      - name: Cache Ollama models
+        id: cache-ollama
+        uses: actions/cache@v4
+        with:
+          path: ~/.ollama
+          key: ${{ runner.os }}-ollama-nomic-embed-text
+      
+      - name: Setup Ollama
+        uses: ai-action/setup-ollama@v1
+      
+      - name: Start Ollama service
+        run: |
+          ollama serve &
+          sleep 5
+      
+      - name: Pull embedding model
+        if: steps.cache-ollama.outputs.cache-hit != 'true'
+        run: ollama pull nomic-embed-text
+      
       - name: Install dependencies
         run: make install
       
