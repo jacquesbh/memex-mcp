@@ -37,7 +37,7 @@ class WriteContextToolExecutor implements ToolExecutorInterface, IdentifierInter
                     'action' => $overwrite ? 'updated' : 'created',
                     'name' => $name,
                     'slug' => $slug,
-                    'file' => "knowledge-base/contexts/{$slug}.md",
+                    'file' => "contexts/{$slug}.md",
                     'tags' => $tags,
                 ], JSON_THROW_ON_ERROR)
             );

@@ -12,8 +12,8 @@ final readonly class ApplicationHelper
     public static function getDefaultKnowledgeBasePath(): string
     {
         return \Phar::running(false) !== '' 
-            ? getcwd() . '/knowledge-base'
-            : dirname(__DIR__, 2) . '/knowledge-base';
+            ? getcwd() . '/memex-knowledge-base'
+            : dirname(__DIR__, 2) . '/memex-knowledge-base';
     }
 
     public static function resolveKnowledgeBasePath(?string $path): string

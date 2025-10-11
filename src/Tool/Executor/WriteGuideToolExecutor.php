@@ -37,7 +37,7 @@ class WriteGuideToolExecutor implements ToolExecutorInterface, IdentifierInterfa
                     'action' => $overwrite ? 'updated' : 'created',
                     'title' => $title,
                     'slug' => $slug,
-                    'file' => "knowledge-base/guides/{$slug}.md",
+                    'file' => "guides/{$slug}.md",
                     'tags' => $tags,
                 ], JSON_THROW_ON_ERROR)
             );
