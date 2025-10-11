@@ -1,36 +1,20 @@
 # Agent Guidelines for MEMEX
 
-## Commands
+📖 **Documentation:** [README.md](README.md) (overview) | [USAGE.md](USAGE.md) (complete guide)
 
-### Development (Castor CLI)
-- **Run server**: `castor server`
-- **Compile guides**: `castor compile:guides`
-- **Compile contexts**: `castor compile:contexts`
-- **Initialize KB**: `castor init`
-- **View stats**: `castor stats`
-- **System check**: `castor doctor`
-- **List all commands**: `castor list`
+## Commands Reference
 
-### Production (MEMEX Binary)
-- **Build binary**: See `BUILD.md` for instructions
-- **Run server**: `./memex server`
-- **All commands**: Replace `castor` with `./memex`
+**Dev:** `castor server`, `castor compile:guides`, `castor init`, `castor stats`
+**Prod:** `./memex server` (replace `castor` with `./memex`)
+**Testing:** `make test` (PHPUnit), `make test-mcp` (MCP integration)
+**Build:** `make build` (creates binary)
 
-### Testing
-- **Run PHPUnit tests**: `make test` or `vendor/bin/phpunit`
-- **Run MCP integration tests**: `make test-mcp` (requires Node.js 20+)
-- **Test specific file**: `vendor/bin/phpunit tests/Service/GuideServiceTest.php`
-- **Test with output**: `vendor/bin/phpunit --testdox`
+Complete command reference: [USAGE.md](USAGE.md)
 
-### GitHub Actions CI/CD
-- **CI Pipeline**: `.github/workflows/ci.yml`
-  - Runs on push/PR to `main`
-  - Jobs: `test` (PHPUnit) → `build` (binary) → `test-mcp` (integration)
-  - Badge: `![CI](https://github.com/jacquesbh/memex-mcp/actions/workflows/ci.yml/badge.svg)`
-- **Release Pipeline**: `.github/workflows/release.yml`
-  - Triggered on `v*` tags (e.g., `v1.0.0`)
-  - Builds binary and creates GitHub Release
-  - Auto-attaches `memex` binary to release
+## CI/CD
+
+**CI:** `.github/workflows/ci.yml` - Runs on push/PR: test → build → test-mcp
+**Release:** `.github/workflows/release.yml` - Triggered on `v*` tags, creates GitHub Release with binary
 
 ## Code Style (PHP 8.3+, Symfony MCP SDK)
 - **Strict types**: Always use `declare(strict_types=1);` at top of file
