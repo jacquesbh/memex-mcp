@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    name: PHPUnit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, curl, json
+          tools: symfony-cli, castor
+          coverage: none
+      
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-
+      
+      - name: Install dependencies
+        run: make install
+      
+      - name: Install dev dependencies
+        run: composer require --dev phpunit/phpunit:^11.5
+      
+      - name: Run PHPUnit tests
+        run: make test
+  
+  build:
+    name: Build Binary
+    needs: test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, curl, json
+          tools: symfony-cli, castor
+      
+      - name: Build MEMEX binary
+        run: make build
+      
+      - name: Verify binary
+        run: |
+          test -f memex
+          chmod +x memex
+          ./memex --version || true
+      
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: memex-binary
+          path: memex
+          retention-days: 1
+  
+  test-mcp:
+    name: MCP Integration Tests
+    needs: build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: memex-binary
+      
+      - name: Make binary executable
+        run: chmod +x memex
+      
+      - name: Initialize knowledge base
+        run: ./memex init --knowledge-base=/tmp/memex-ci-kb
+      
+      - name: Run MCP Inspector tests
+        run: bash bin/test-mcp.sh

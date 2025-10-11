@@ -22,6 +22,16 @@
 - **Test specific file**: `vendor/bin/phpunit tests/Service/GuideServiceTest.php`
 - **Test with output**: `vendor/bin/phpunit --testdox`
 
+### GitHub Actions CI/CD
+- **CI Pipeline**: `.github/workflows/ci.yml`
+  - Runs on push/PR to `main`
+  - Jobs: `test` (PHPUnit) → `build` (binary) → `test-mcp` (integration)
+  - Badge: `![CI](https://github.com/jacquesbh/memex-mcp/actions/workflows/ci.yml/badge.svg)`
+- **Release Pipeline**: `.github/workflows/release.yml`
+  - Triggered on `v*` tags (e.g., `v1.0.0`)
+  - Builds binary and creates GitHub Release
+  - Auto-attaches `memex` binary to release
+
 ## Code Style (PHP 8.3+, Symfony MCP SDK)
 - **Strict types**: Always use `declare(strict_types=1);` at top of file
 - **Constructor DI**: Use constructor property promotion with `readonly` for services

@@ -1,5 +1,7 @@
 # MEMEX
 
+![CI](https://github.com/jacquesbh/memex-mcp/actions/workflows/ci.yml/badge.svg)
+
 ```
  ███╗   ███╗███████╗███╗   ███╗███████╗██╗  ██╗
  ████╗ ████║██╔════╝████╗ ████║██╔════╝╚██╗██╔╝

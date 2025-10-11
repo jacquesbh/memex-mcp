@@ -23,7 +23,7 @@ Inspired by [Vannevar Bush's Memex (1945)](https://en.wikipedia.org/wiki/Memex),
 ### 1. Install Dependencies
 
 ```bash
-cd /path/to/mcp-memex
+cd /path/to/memex-mcp
 composer install
 ```
 
@@ -103,7 +103,7 @@ Edit `claude_desktop_config.json`:
 {
   "mcpServers": {
     "memex": {
-      "command": "/absolute/path/to/mcp-memex/memex",
+      "command": "/absolute/path/to/memex-mcp/memex",
       "args": ["server"]
     }
   }
@@ -116,7 +116,7 @@ Edit `claude_desktop_config.json`:
 {
   "mcpServers": {
     "memex": {
-      "command": "/absolute/path/to/mcp-memex/vendor/bin/castor",
+      "command": "/absolute/path/to/memex-mcp/vendor/bin/castor",
       "args": ["server"]
     }
   }
@@ -129,7 +129,7 @@ Edit `claude_desktop_config.json`:
 {
   "mcpServers": {
     "memex": {
-      "command": "/absolute/path/to/mcp-memex/memex",
+      "command": "/absolute/path/to/memex-mcp/memex",
       "args": ["server", "--knowledge-base=/shared/company-kb"]
     }
   }
@@ -137,7 +137,7 @@ Edit `claude_desktop_config.json`:
 ```
 
 ⚠️ **Important**: 
-- Replace `/absolute/path/to/mcp-memex` with the **absolute** path to your project
+- Replace `/absolute/path/to/memex-mcp` with the **absolute** path to your project
 - To build the MEMEX binary: see `BUILD.md`
 
 ### 3. Restart Claude Desktop
@@ -187,7 +187,7 @@ In VS Code, open Cline settings and add the MCP server:
 {
   "mcpServers": {
     "memex": {
-      "command": "/absolute/path/to/mcp-memex/memex",
+      "command": "/absolute/path/to/memex-mcp/memex",
       "args": ["server"]
     }
   }
@@ -264,7 +264,7 @@ See `BUILD.md` for complete instructions.
 To test compilation:
 
 ```bash
-cd /path/to/mcp-memex
+cd /path/to/memex-mcp
 
 # With Castor
 castor compile:guides
