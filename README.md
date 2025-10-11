@@ -21,6 +21,7 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 
 - PHP 8.3+
 - Composer
+- **Built with Symfony MCP SDK** (official Symfony AI SDK)
 
 ## Installation
 
