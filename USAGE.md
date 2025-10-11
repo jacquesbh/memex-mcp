@@ -12,6 +12,7 @@ Inspired by [Vannevar Bush's Memex (1945)](https://en.wikipedia.org/wiki/Memex),
 
 - PHP 8.3+
 - Composer installed
+- **Ollama** with `nomic-embed-text` model ([Install](https://ollama.com))
 - MCP-compatible client:
   - **Claude Desktop** (recommended)
   - **Cline** (VS Code extension)
@@ -26,7 +27,19 @@ cd /path/to/mcp-memex
 composer install
 ```
 
-### 2. (Optional) Configure Custom Knowledge Base
+### 2. Setup Ollama
+
+MEMEX uses Ollama for semantic search. Install from [ollama.com](https://ollama.com), then:
+
+```bash
+# Pull required embedding model
+ollama pull nomic-embed-text
+
+# Verify it's running
+ollama list
+```
+
+### 3. (Optional) Configure Custom Knowledge Base
 
 By default, the server uses the `knowledge-base/` directory. You can change this:
 
@@ -45,7 +58,7 @@ castor server --knowledge-base=./custom-kb
 
 **Note**: The directory must exist and contain `guides/` and `contexts/` subdirectories.
 
-### 3. Test the Server Manually
+### 4. Test the Server Manually
 
 **With Castor (recommended):**
 ```bash
@@ -408,6 +421,21 @@ composer dump-autoload
 1. Verify `knowledge-base/guides/` or `knowledge-base/contexts/` contains `.md` files
 2. Recompile: `castor compile:guides` or `castor compile:contexts`
 3. Check compiled files: `cat knowledge-base/compiled/guides.json`
+
+### Ollama Connection Errors
+
+**Error**: `Failed to get embeddings from Ollama`
+
+**Solutions:**
+```bash
+# Verify Ollama is running
+ollama list
+
+# Install model if missing
+ollama pull nomic-embed-text
+```
+
+If Ollama isn't installed, get it from [ollama.com](https://ollama.com).
 
 ---
 

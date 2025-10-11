@@ -80,6 +80,8 @@ The `./memex` binary is a single-file executable that can be distributed without
 
 Simply copy the `memex` file and the `knowledge-base/` directory to deploy.
 
+**Runtime requirements**: PHP 8.3+ and Ollama with `nomic-embed-text` ([ollama.com](https://ollama.com))
+
 ## Notes
 
 - The binary includes the MEMEX logo (configured in `.castor.stub.php`)

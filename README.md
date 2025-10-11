@@ -21,6 +21,7 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 
 - PHP 8.3+
 - Composer
+- **Ollama** with `nomic-embed-text` model (for semantic search) - [Install Ollama](https://ollama.com)
 - **Built with Symfony MCP SDK** (official Symfony AI SDK)
 
 ## Installation
@@ -30,6 +31,11 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 ```bash
 make install
 # or manually: symfony composer install
+```
+3. Setup Ollama (required for semantic search):
+```bash
+# Install from https://ollama.com then:
+ollama pull nomic-embed-text
 ```
 
 
