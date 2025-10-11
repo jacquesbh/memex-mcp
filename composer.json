@@ -1,6 +1,6 @@
 {
-    "name": "monsieurbiz/mcp-ui-element",
-    "description": "MCP Server for generating UI element implementation guides",
+    "name": "monsieurbiz/memex-mcp",
+    "description": "MEMEX - MCP server for managing guides and contexts knowledge base. Inspired by Vannevar Bush's vision of augmented memory.",
     "type": "project",
     "require": {
         "php": "^8.3",
@@ -22,12 +22,12 @@
     ],
     "autoload": {
         "psr-4": {
-            "App\\": "src/"
+            "Memex\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "App\\Tests\\": "tests/"
+            "Memex\\Tests\\": "tests/"
         }
     },
     "config": {

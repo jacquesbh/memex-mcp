@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Service;
+namespace Memex\Service;
 
 use League\CommonMark\CommonMarkConverter;
 

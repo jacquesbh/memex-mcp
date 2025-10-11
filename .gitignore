@@ -4,6 +4,7 @@
 /.env.*.local
 /var/
 /knowledge-base/compiled/*.json
+/knowledge-base/var/
 composer.lock
 .DS_Store
 .idea/

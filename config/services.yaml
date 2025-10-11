@@ -18,6 +18,25 @@ services:
 
     App\Service\PatternCompilerService: ~
 
+    App\Service\VectorService:
+        arguments:
+            $knowledgeBasePath: '%kernel.project_dir%/knowledge-base'
+
+    App\Service\ContentService:
+        abstract: true
+        arguments:
+            $knowledgeBasePath: '%kernel.project_dir%/knowledge-base'
+            $compiler: '@App\Service\PatternCompilerService'
+            $vectorService: '@App\Service\VectorService'
+
+    App\Service\GuideService:
+        parent: App\Service\ContentService
+
+    App\Service\ContextService:
+        parent: App\Service\ContentService
+
     App\Service\GuideGeneratorService: ~
 
     App\Tool\GenerateImplementationGuideTool: ~
+    
+    App\Tool\SearchTool: ~

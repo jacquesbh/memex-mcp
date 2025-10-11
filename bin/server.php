@@ -3,11 +3,19 @@
 
 declare(strict_types=1);
 
-use App\Service\ClaudeApiService;
-use App\Service\GuideGeneratorService;
-use App\Service\KnowledgeBaseService;
-use App\Service\PatternCompilerService;
-use App\Tool\GenerateImplementationGuideTool;
+use Memex\Service\ContextService;
+use Memex\Service\GuideService;
+use Memex\Service\PatternCompilerService;
+use Memex\Service\VectorService;
+use Memex\Tool\DeleteContextTool;
+use Memex\Tool\DeleteGuideTool;
+use Memex\Tool\GetContextTool;
+use Memex\Tool\GetGuideTool;
+use Memex\Tool\ListContextsTool;
+use Memex\Tool\ListGuidesTool;
+use Memex\Tool\SearchTool;
+use Memex\Tool\WriteContextTool;
+use Memex\Tool\WriteGuideTool;
 use PhpMcp\Server\Defaults\BasicContainer;
 use PhpMcp\Server\Server;
 use PhpMcp\Server\Transports\StdioServerTransport;
@@ -16,35 +24,6 @@ use Symfony\Component\Dotenv\Dotenv;
 require_once __DIR__ . '/../vendor/autoload.php';
 
 (new Dotenv())->bootEnv(__DIR__ . '/../.env');
-
-/**
- * Resolve Claude API key with priority chain:
- * 1. CLI argument (--claude-api-key=xxx)
- * 2. Environment variable (CLAUDE_API_KEY)
- * 3. .env file (CLAUDE_API_KEY)
- * 
- * @param array $options Parsed CLI options
- * @return string API key
- * @throws RuntimeException if no API key found
- */
-function resolveApiKey(array $options): string {
-    if (isset($options['claude-api-key']) && !empty($options['claude-api-key'])) {
-        return $options['claude-api-key'];
-    }
-    
-    $envKey = getenv('CLAUDE_API_KEY');
-    if ($envKey !== false && !empty($envKey)) {
-        return $envKey;
-    }
-    
-    if (isset($_ENV['CLAUDE_API_KEY']) && !empty($_ENV['CLAUDE_API_KEY'])) {
-        return $_ENV['CLAUDE_API_KEY'];
-    }
-    
-    throw new RuntimeException(
-        'CLAUDE_API_KEY not configured. Use --claude-api-key=xxx or set in .env'
-    );
-}
 
 /**
  * Resolve knowledge base path with priority chain:
@@ -83,36 +62,70 @@ function resolveKnowledgeBasePath(array $options): string {
     return $resolvedPath;
 }
 
-$options = getopt('', ['claude-api-key:', 'knowledge-base:']);
-$apiKey = resolveApiKey($options);
+$options = getopt('', ['knowledge-base:']);
 $knowledgeBasePath = resolveKnowledgeBasePath($options);
 
 $container = new BasicContainer();
 $container->set(PatternCompilerService::class, new PatternCompilerService());
-$container->set(ClaudeApiService::class, new ClaudeApiService($apiKey));
+$container->set(VectorService::class, new VectorService($knowledgeBasePath));
 $container->set(
-    KnowledgeBaseService::class,
-    new KnowledgeBaseService(
+    GuideService::class,
+    new GuideService(
         $knowledgeBasePath,
-        $container->get(PatternCompilerService::class)
+        $container->get(PatternCompilerService::class),
+        $container->get(VectorService::class)
     )
 );
 $container->set(
-    GuideGeneratorService::class,
-    new GuideGeneratorService(
-        $container->get(ClaudeApiService::class),
-        $container->get(KnowledgeBaseService::class)
+    ContextService::class,
+    new ContextService(
+        $knowledgeBasePath,
+        $container->get(PatternCompilerService::class),
+        $container->get(VectorService::class)
     )
 );
 $container->set(
-    GenerateImplementationGuideTool::class,
-    new GenerateImplementationGuideTool(
-        $container->get(GuideGeneratorService::class)
+    GetGuideTool::class,
+    new GetGuideTool($container->get(GuideService::class))
+);
+$container->set(
+    GetContextTool::class,
+    new GetContextTool($container->get(ContextService::class))
+);
+$container->set(
+    ListGuidesTool::class,
+    new ListGuidesTool($container->get(GuideService::class))
+);
+$container->set(
+    ListContextsTool::class,
+    new ListContextsTool($container->get(ContextService::class))
+);
+$container->set(
+    WriteGuideTool::class,
+    new WriteGuideTool($container->get(GuideService::class))
+);
+$container->set(
+    WriteContextTool::class,
+    new WriteContextTool($container->get(ContextService::class))
+);
+$container->set(
+    DeleteGuideTool::class,
+    new DeleteGuideTool($container->get(GuideService::class))
+);
+$container->set(
+    DeleteContextTool::class,
+    new DeleteContextTool($container->get(ContextService::class))
+);
+$container->set(
+    SearchTool::class,
+    new SearchTool(
+        $container->get(GuideService::class),
+        $container->get(ContextService::class)
     )
 );
 
 $server = Server::make()
-    ->withServerInfo('mcp-ui-element', '1.0.0')
+    ->withServerInfo('memex', '1.0.0')
     ->withContainer($container)
     ->build();
 
