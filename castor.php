@@ -23,7 +23,7 @@ use function Castor\io;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-const MEMEX_VERSION = '1.0.0';
+const MEMEX_VERSION = '1.0.0-rc2';
 const GITHUB_REPO = 'jacquesbh/memex-mcp';
 
 #[AsTask(description: 'Start the MCP server')]
@@ -221,7 +221,12 @@ function checkUpdate(): void
             io()->success('You are running the latest version');
         }
     } catch (\Exception $e) {
-        io()->error("Failed to check for updates: {$e->getMessage()}");
+        $message = $e->getMessage();
+        if (str_contains($message, '404') || str_contains($message, 'Not Found')) {
+            io()->error('No releases found. Please check https://github.com/' . GITHUB_REPO . '/releases');
+        } else {
+            io()->error("Failed to check for updates: {$message}");
+        }
     }
 }
 
@@ -245,20 +250,33 @@ function selfUpdate(): void
     try {
         if ($updater->hasUpdate()) {
             io()->writeln('Downloading update...');
-
-            if ($updater->update()) {
-                $new = $updater->getNewVersion();
-                $old = $updater->getOldVersion();
-                io()->success("Successfully updated!");
-                io()->writeln("Previous: SHA-256 {$old}");
-                io()->writeln("Current:  SHA-256 {$new}");
+            
+            @$result = $updater->update();
+            
+            if ($result) {
+                fwrite(STDOUT, "\n✅ Successfully updated!\n");
+                fwrite(STDOUT, "ℹ️  The new version is ready. Run \"./memex --version\" to verify.\n\n");
+                exit(0);
             } else {
-                io()->error('Update failed - no changes made');
+                fwrite(STDERR, "\n❌ Update failed - no changes made\n\n");
+                exit(1);
             }
         } else {
             io()->success('Already running the latest version');
         }
     } catch (\Exception $e) {
-        io()->error("Update failed: {$e->getMessage()}");
+        $message = $e->getMessage();
+        if (str_contains($message, '404') || str_contains($message, 'Not Found')) {
+            io()->error('No releases found on GitHub');
+            io()->note('Please download manually from: https://github.com/' . GITHUB_REPO . '/releases');
+        } elseif (str_contains($message, 'zlib')) {
+            io()->error('Downloaded file is corrupted or invalid');
+            io()->note('This may indicate a network issue or that the release is still being processed');
+            io()->note('Try again in a few minutes or download manually from: https://github.com/' . GITHUB_REPO . '/releases');
+        } else {
+            io()->error("Update failed: {$message}");
+            io()->note('You can download manually from: https://github.com/' . GITHUB_REPO . '/releases');
+        }
+        exit(1);
     }
 }
