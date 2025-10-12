@@ -3,13 +3,31 @@
 ![CI](https://github.com/jacquesbh/memex-mcp/actions/workflows/ci.yml/badge.svg)
 
 ```
- ███╗   ███╗███████╗███╗   ███╗███████╗██╗  ██╗
- ████╗ ████║██╔════╝████╗ ████║██╔════╝╚██╗██╔╝
- ██╔████╔██║█████╗  ██╔████╔██║█████╗   ╚███╔╝ 
- ██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║██╔══╝   ██╔██╗ 
- ██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║███████╗██╔╝ ██╗
- ╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝
+         ███╗   ███╗███████╗███╗   ███╗███████╗██╗  ██╗
+         ████╗ ████║██╔════╝████╗ ████║██╔════╝╚██╗██╔╝
+         ██╔████╔██║█████╗  ██╔████╔██║█████╗   ╚███╔╝ 
+         ██║╚██╔╝██║██╔══╝  ██║╚██╔╝██║██╔══╝   ██╔██╗ 
+         ██║ ╚═╝ ██║███████╗██║ ╚═╝ ██║███████╗██╔╝ ██╗
+         ╚═╝     ╚═╝╚══════╝╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   • FREE TO USE - NO STRINGS ATTACHED                           │
+│                                                                 │
+│  This project is MIT licensed to maximize adoption and help     │
+│  as many developers as possible. We believe in open source      │
+│  through voluntary contribution rather than legal obligation.   │
+│                                                                 │
+│   • Found a bug? Built something cool?                          │
+│   • We'd love your contribution via issue or PR!                │
+│                                                                 │
+│  See CONTRIBUTING.md for guidelines.                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
+**License:** [MIT](LICENSE) - Use freely in any project.
+
+---
 
 **MEM**ory + ind**EX** - A Model Context Protocol (MCP) server for managing your knowledge base of **guides** and **contexts**.
 
@@ -106,7 +124,7 @@ All configuration options (OpenCode, custom KB, etc.): [USAGE.md](USAGE.md)
 knowledge-base/
 ├── guides/      # Technical how-to docs
 ├── contexts/    # AI personas/prompts
-└── ,vectors/    # SQLite database with embeddings
+└── .vectors/    # SQLite database with embeddings
 ```
 
 Files use Markdown with YAML frontmatter. Details: [USAGE.md](USAGE.md)
