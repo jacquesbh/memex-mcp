@@ -228,7 +228,7 @@ castor stats
 
 ## Knowledge Base Format
 
-**Guides** (technical how-to): `knowledge-base/guides/*.md`
+**Guides** (technical how-to): `knowledge-base/guides/*.md`  
 **Contexts** (AI personas): `knowledge-base/contexts/*.md`
 
 Both use Markdown with YAML frontmatter. See [README.md](README.md) for structure.
@@ -273,7 +273,6 @@ composer dump-autoload
 **Solution**: 
 1. Verify `knowledge-base/guides/` or `knowledge-base/contexts/` contains `.md` files
 2. Recompile: `castor compile:guides` or `castor compile:contexts`
-3. Check compiled files: `cat knowledge-base/compiled/guides.json`
 
 ### Ollama Connection Errors
 
@@ -294,16 +293,6 @@ If Ollama isn't installed, get it from [ollama.com](https://ollama.com).
 
 ## Monitoring
 
-### Check Compiled Guides/Contexts
-
-```bash
-# View compiled guides
-cat knowledge-base/compiled/guides.json | jq
-
-# View compiled contexts
-cat knowledge-base/compiled/contexts.json | jq
-```
-
 ### View Stats
 
 ```bash
@@ -317,9 +306,9 @@ castor stats
 
 ## Example Workflows
 
-**Load guide**: `"Load the guide for adding a Sylius menu"`
-**Create guide**: `"Write a guide for implementing custom repository"`
-**Load context + guide**: `"Load Sylius Expert context, then load the plugin guide"`
+**Load guide**: `"Load the guide for adding a Sylius menu"`  
+**Create guide**: `"Write a guide for implementing custom repository"`  
+**Load context + guide**: `"Load Sylius Expert context, then load the plugin guide"`  
 **Share KB**: Use `--knowledge-base=/shared/kb` across projects
 
 ## Tips
