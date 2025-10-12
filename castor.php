@@ -55,7 +55,7 @@ function init(
     ?string $knowledgeBase = null
 ): void
 {
-    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
+    $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
 
     $dirs = [
         "{$kbPath}/guides",
