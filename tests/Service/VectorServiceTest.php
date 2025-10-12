@@ -405,4 +405,43 @@ final class VectorServiceTest extends TestCase
         $this->assertSame('new', $results[0]['slug']);
         $this->assertSame('old', $results[1]['slug']);
     }
+
+    public function testExistsReturnsTrueForExistingDocument(): void
+    {
+        $this->service->index('exists-test', [
+            'name' => 'Exists Test',
+            'content' => 'Content',
+            'sections' => [],
+            'metadata' => ['type' => 'guide', 'title' => 'Exists Test', 'tags' => []]
+        ]);
+        
+        $exists = $this->service->exists('exists-test');
+        
+        $this->assertTrue($exists);
+    }
+
+    public function testExistsReturnsFalseForNonExistentDocument(): void
+    {
+        $exists = $this->service->exists('non-existent');
+        
+        $this->assertFalse($exists);
+    }
+
+    public function testExistsIgnoresSections(): void
+    {
+        $this->service->index('with-sections', [
+            'name' => 'With Sections',
+            'content' => 'Main content',
+            'sections' => [
+                ['title' => 'Section', 'content' => 'Section content', 'level' => 2]
+            ],
+            'metadata' => ['type' => 'guide', 'title' => 'With Sections', 'tags' => []]
+        ]);
+        
+        $exists = $this->service->exists('with-sections');
+        $this->assertTrue($exists);
+        
+        $sectionExists = $this->service->exists('with-sections_section_0');
+        $this->assertFalse($sectionExists);
+    }
 }

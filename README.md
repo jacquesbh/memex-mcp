@@ -44,7 +44,7 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 - **🔍 Search Tools**: Retrieve guides and contexts with semantic search
 - **🗑️ Delete Tools**: Clean up obsolete content
 - **📋 List Tools**: Browse all available guides and contexts
-- **🔄 Auto-Compilation**: Markdown files compiled to JSON for fast retrieval
+- **🔍 Vector Search**: Semantic search powered by Ollama embeddings
 - **🚀 Claude AI Integration**: Compatible with Claude 3.7+ via MCP protocol
 - **📁 Flexible Storage**: Use custom knowledge base paths, shareable across projects
 

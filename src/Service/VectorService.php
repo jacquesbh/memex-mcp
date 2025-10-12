@@ -174,6 +174,13 @@ class VectorService
         $stmt->execute([$slug, "{$slug}_section_%"]);
     }
 
+    public function exists(string $slug): bool
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM embeddings WHERE slug = ? AND type != "section"');
+        $stmt->execute([$slug]);
+        return $stmt->fetchColumn() > 0;
+    }
+
     private function embedWithOllama(string $text): array
     {
         $ch = curl_init("{$this->ollamaUrl}/api/embeddings");

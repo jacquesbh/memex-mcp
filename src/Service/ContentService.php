@@ -126,6 +126,34 @@ abstract class ContentService
         ];
     }
 
+    public function reindexAll(bool $onlyNew = false): int
+    {
+        $contentDir = $this->getFullContentDir();
+        
+        if (!is_dir($contentDir)) {
+            return 0;
+        }
+        
+        $finder = new Finder();
+        $finder->files()->in($contentDir)->name('*.md');
+        
+        $count = 0;
+        foreach ($finder as $file) {
+            $slug = $this->extractSlug($file->getFilename());
+            
+            if ($onlyNew && $this->vectorService->exists($slug)) {
+                continue;
+            }
+            
+            $content = $file->getContents();
+            $compiled = $this->compiler->compile($content, $file->getFilename());
+            $this->vectorService->index($slug, $compiled);
+            $count++;
+        }
+        
+        return $count;
+    }
+
     protected function getFullContentDir(): string
     {
         return $this->knowledgeBasePath . '/' . $this->getContentDir();

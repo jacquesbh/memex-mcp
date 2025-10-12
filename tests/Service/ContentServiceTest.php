@@ -446,4 +446,83 @@ Content');
         $dir = $method->invoke($this->service);
         $this->assertSame($this->tempDir . '/tests', $dir);
     }
+
+    public function testReindexAllIndexesAllFiles(): void
+    {
+        mkdir($this->tempDir . '/tests', 0755, true);
+        file_put_contents($this->tempDir . '/tests/file1.md', 'Content 1');
+        file_put_contents($this->tempDir . '/tests/file2.md', 'Content 2');
+        file_put_contents($this->tempDir . '/tests/file3.md', 'Content 3');
+        
+        $this->compilerService->expects($this->exactly(3))
+            ->method('compile')
+            ->willReturnCallback(fn($content, $filename) => [
+                'name' => $filename,
+                'slug' => str_replace('.md', '', $filename)
+            ]);
+        
+        $this->vectorService->expects($this->exactly(3))
+            ->method('index');
+        
+        $count = $this->service->reindexAll();
+        
+        $this->assertSame(3, $count);
+    }
+
+    public function testReindexAllReturnsZeroWhenDirDoesNotExist(): void
+    {
+        $count = $this->service->reindexAll();
+        
+        $this->assertSame(0, $count);
+    }
+
+    public function testReindexAllWithOnlyNewSkipsExisting(): void
+    {
+        mkdir($this->tempDir . '/tests', 0755, true);
+        file_put_contents($this->tempDir . '/tests/existing.md', 'Existing content');
+        file_put_contents($this->tempDir . '/tests/new.md', 'New content');
+        
+        $this->vectorService->expects($this->exactly(2))
+            ->method('exists')
+            ->willReturnMap([
+                ['existing', true],
+                ['new', false]
+            ]);
+        
+        $this->compilerService->expects($this->once())
+            ->method('compile')
+            ->with('New content', 'new.md')
+            ->willReturn(['name' => 'new', 'slug' => 'new']);
+        
+        $this->vectorService->expects($this->once())
+            ->method('index')
+            ->with('new', $this->anything());
+        
+        $count = $this->service->reindexAll(true);
+        
+        $this->assertSame(1, $count);
+    }
+
+    public function testReindexAllWithOnlyNewIndexesAllWhenNoneExist(): void
+    {
+        mkdir($this->tempDir . '/tests', 0755, true);
+        file_put_contents($this->tempDir . '/tests/new1.md', 'Content 1');
+        file_put_contents($this->tempDir . '/tests/new2.md', 'Content 2');
+        
+        $this->vectorService->method('exists')->willReturn(false);
+        
+        $this->compilerService->expects($this->exactly(2))
+            ->method('compile')
+            ->willReturnCallback(fn($content, $filename) => [
+                'name' => $filename,
+                'slug' => str_replace('.md', '', $filename)
+            ]);
+        
+        $this->vectorService->expects($this->exactly(2))
+            ->method('index');
+        
+        $count = $this->service->reindexAll(true);
+        
+        $this->assertSame(2, $count);
+    }
 }

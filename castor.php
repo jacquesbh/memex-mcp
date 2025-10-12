@@ -131,10 +131,12 @@ function stats(
     ]);
 }
 
-#[AsTask(namespace: 'compile', description: 'Compile all guides for vector search')]
-function guides(
+#[AsTask(description: 'Index all guides and contexts for vector search')]
+function embed(
     #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
-    ?string $knowledgeBase = null
+    ?string $knowledgeBase = null,
+    #[AsOption(name: 'only-new', description: 'Only index files not already in the database')]
+    bool $onlyNew = false
 ): void
 {
     $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
@@ -144,41 +146,26 @@ function guides(
         exit(1);
     }
 
-    io()->title('🔄 Compiling guides');
-    io()->text("From: {$kbPath}/guides/");
+    $mode = $onlyNew ? 'new files' : 'all files';
+    io()->title("📦 Indexing knowledge base ({$mode})");
+    io()->text("From: {$kbPath}");
+    io()->newLine();
 
     $compiler = new PatternCompilerService();
     $vectorService = new VectorService($kbPath);
+
+    io()->writeln('🔄 Indexing guides...');
     $guideService = new GuideService($kbPath, $compiler, $vectorService);
+    $guidesCount = $guideService->reindexAll($onlyNew);
+    io()->writeln("  ✓ Indexed {$guidesCount} guides");
 
-    $guides = $guideService->list();
-
-    io()->success("Successfully compiled " . count($guides) . " guides");
-}
-
-#[AsTask(namespace: 'compile', description: 'Compile all contexts for vector search')]
-function contexts(
-    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
-    ?string $knowledgeBase = null
-): void
-{
-    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
-
-    if (!is_dir($kbPath)) {
-        io()->error("Knowledge base path does not exist: {$kbPath}");
-        exit(1);
-    }
-
-    io()->title('🔄 Compiling contexts');
-    io()->text("From: {$kbPath}/contexts/");
-
-    $compiler = new PatternCompilerService();
-    $vectorService = new VectorService($kbPath);
+    io()->writeln('🔄 Indexing contexts...');
     $contextService = new ContextService($kbPath, $compiler, $vectorService);
+    $contextsCount = $contextService->reindexAll($onlyNew);
+    io()->writeln("  ✓ Indexed {$contextsCount} contexts");
 
-    $contexts = $contextService->list();
-
-    io()->success("Successfully compiled " . count($contexts) . " contexts");
+    io()->newLine();
+    io()->success("Successfully indexed " . ($guidesCount + $contextsCount) . " items");
 }
 
 #[AsTask(description: 'Check system health and configuration')]

@@ -230,24 +230,36 @@ Add to `~/.config/opencode/opencode.json`:
 
 ## Manual Service Testing
 
-To test compilation:
+### Indexing Content
+
+To index existing guides and contexts for semantic search:
 
 ```bash
 cd /path/to/memex-mcp
 
-# With Castor
-castor compile:guides
-castor compile:contexts
+# Index all files (re-indexes existing ones)
+castor embed
+# or
+./memex embed
 
-# With binary
-./memex compile:guides
-./memex compile:contexts
+# Index only new files (skip already indexed)
+castor embed --only-new
+# or
+./memex embed --only-new
 
 # View stats
 castor stats
 # or
 ./memex stats
 ```
+
+**When to use `embed`:**
+- After cloning a repository with existing `.md` files
+- After manually adding guides/contexts to the filesystem
+- After updating existing guides manually (without `--only-new`)
+- To rebuild the entire vector database
+
+**Note:** Writing via MCP tools (`write_guide`, `write_context`) automatically indexes content.
 
 ---
 
@@ -259,8 +271,8 @@ castor stats
 Both use Markdown with YAML frontmatter. See [README.md](README.md) for structure.
 
 **Creating content:**
-- Via your LLM (Claude, OpenAI…) connected to the MCP: `"Write a guide for X"` or `"Write a context Y"`
-- Manually: Create `.md` file, add frontmatter, run `./memex compile:guides` or `./memex compile:contexts`
+- Via your LLM (Claude, OpenAI…) connected to the MCP: `"Write a guide for X"` or `"Write a context Y"` (auto-indexed)
+- Manually: Create `.md` file, add frontmatter, run `./memex embed --only-new` to index
 
 ---
 
@@ -297,7 +309,7 @@ composer dump-autoload
 
 **Solution**: 
 1. Verify `knowledge-base/guides/` or `knowledge-base/contexts/` contains `.md` files
-2. Recompile: `castor compile:guides` or `castor compile:contexts`
+2. Index the files: `castor embed` or `./memex embed`
 
 ### Ollama Connection Errors
 

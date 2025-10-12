@@ -4,8 +4,9 @@
 
 ## Commands Reference
 
-**Dev:** `castor server`, `castor compile:guides`, `castor init`, `castor stats`
+**Dev:** `castor server`, `castor embed`, `castor init`, `castor stats`
 **Prod:** `./memex server` (replace `castor` with `./memex`)
+**Indexing:** `castor embed` (all files), `castor embed --only-new` (new files only)
 **Custom KB:** Add `--kb=/path` to any command
 **Testing:** `make test` (PHPUnit), `make test-mcp` (MCP integration)
 **Build:** `make build` (creates binary)
