@@ -222,7 +222,7 @@ function doctor(
     if ($allGood) {
         io()->success('System check complete - all healthy!');
     } else {
-        io()->warning("Some checks failed - run `castor init --kb={$kbPath}` to initialize missing directories");
+        io()->warning("Some checks failed - run `memex init --kb={$kbPath}` to initialize missing directories");
     }
 }
 
