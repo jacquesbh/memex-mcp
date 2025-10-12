@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Memex\Helper;
 
+use Memex\Service\ConfigService;
 use RuntimeException;
 use Symfony\Component\Dotenv\Dotenv;
 
@@ -21,7 +22,10 @@ final readonly class ApplicationHelper
 
     public static function resolveKnowledgeBasePath(?string $path): string
     {
-        $resolvedPath = $path ?? self::getDefaultKnowledgeBasePath();
+        $configService = new ConfigService();
+        $configPath = $configService->getKnowledgeBasePath();
+        
+        $resolvedPath = $path ?? $configPath ?? self::getDefaultKnowledgeBasePath();
         
         $realPath = realpath($resolvedPath);
         if ($realPath === false) {

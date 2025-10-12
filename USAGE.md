@@ -56,8 +56,9 @@ ollama list
 
 ### 2. (Optional) Configure Custom Knowledge Base
 
-By default, the server uses `~/.memex/knowledge-base`. You can change this:
+By default, the server uses `~/.memex/knowledge-base`. You can override this in three ways (in order of priority):
 
+#### Option 1: CLI Flag (Highest Priority)
 ```bash
 # Absolute path
 castor server --kb=/shared/company-knowledge
@@ -66,10 +67,34 @@ castor server --kb=/shared/company-knowledge
 castor server --kb=./custom-kb
 ```
 
+#### Option 2: Configuration File
+
+Create `memex.json` in either location:
+
+**Project-specific** (`./<project>/memex.json`):
+```json
+{
+  "knowledgeBase": "/absolute/path/to/kb"
+}
+```
+
+**Global** (`~/.memex/memex.json`):
+```json
+{
+  "knowledgeBase": "/Users/you/Documents/memex-kb"
+}
+```
+
+**Priority**: Local config > Global config > Default path
+
+#### Option 3: Default Path
+Falls back to `~/.memex/knowledge-base` if no config or CLI flag provided.
+
 **Use cases**:
 - Share knowledge base across multiple projects
 - Company-wide guide and context library
 - Test with different content sets
+- Per-project knowledge bases
 
 **Note**: The directory must exist and contain `guides/` and `contexts/` subdirectories.
 

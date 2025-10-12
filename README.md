@@ -97,7 +97,25 @@ Once installed, keep MEMEX up-to-date:
 
 ## Configuration
 
-**Claude Desktop**
+### Knowledge Base Path
+
+Configure your knowledge base location in three ways (priority: CLI > Local config > Global config > Default):
+
+1. **CLI Flag**: `./memex server --kb=/path/to/kb`
+2. **Local Config**: `./memex.json` (project-specific)
+3. **Global Config**: `~/.memex/memex.json` (user-wide)
+
+**Config file format:**
+```json
+{
+  "knowledgeBase": "/absolute/path/to/kb"
+}
+```
+
+**Default**: `~/.memex/knowledge-base` (if no config provided)
+
+### Claude Desktop
+
 ```json
 {
   "mcpServers": {
@@ -108,6 +126,8 @@ Once installed, keep MEMEX up-to-date:
   }
 }
 ```
+
+Custom KB: Add `"--kb=/path"` to `args` array (optional if using config file).
 
 All configuration options (OpenCode, custom KB, etc.): [USAGE.md](USAGE.md)
 

@@ -55,7 +55,7 @@ function init(
     ?string $knowledgeBase = null
 ): void
 {
-    $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
+    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
 
     $dirs = [
         "{$kbPath}/guides",
@@ -97,7 +97,7 @@ function stats(
     ?string $knowledgeBase = null
 ): void
 {
-    $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
+    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
 
     $guidesDir = "{$kbPath}/guides";
     $contextsDir = "{$kbPath}/contexts";
@@ -120,7 +120,7 @@ function guides(
     ?string $knowledgeBase = null
 ): void
 {
-    $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
+    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
 
     if (!is_dir($kbPath)) {
         io()->error("Knowledge base path does not exist: {$kbPath}");
@@ -137,7 +137,6 @@ function guides(
     $guides = $guideService->list();
 
     io()->success("Successfully compiled " . count($guides) . " guides");
-    io()->text("Output: {$kbPath}/compiled/guides.json");
 }
 
 #[AsTask(namespace: 'compile', description: 'Compile all contexts for vector search')]
@@ -146,7 +145,7 @@ function contexts(
     ?string $knowledgeBase = null
 ): void
 {
-    $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
+    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
 
     if (!is_dir($kbPath)) {
         io()->error("Knowledge base path does not exist: {$kbPath}");
@@ -163,7 +162,6 @@ function contexts(
     $contexts = $contextService->list();
 
     io()->success("Successfully compiled " . count($contexts) . " contexts");
-    io()->text("Output: {$kbPath}/compiled/contexts.json");
 }
 
 #[AsTask(description: 'Check system health and configuration')]
@@ -177,12 +175,11 @@ function doctor(
     $phpVersion = PHP_VERSION;
     io()->writeln("✓ PHP version: {$phpVersion}");
 
-    $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
-    $realKbPath = realpath($kbPath);
-
-    if ($realKbPath !== false) {
+    try {
+        $realKbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
         io()->writeln("✓ Knowledge base: {$realKbPath}");
-    } else {
+    } catch (\RuntimeException $e) {
+        $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
         io()->writeln("✗ Knowledge base: {$kbPath} (not found)");
     }
 

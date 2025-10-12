@@ -8,4 +8,6 @@ memex.linux.phar
 memex-old.phar
 .phpunit.cache
 memex-knowledge-base
+memex.json
+
 

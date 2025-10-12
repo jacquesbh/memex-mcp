@@ -46,4 +46,19 @@ final class GetGuideToolMetadataTest extends TestCase
         $this->assertArrayHasKey('required', $schema);
         $this->assertContains('query', $schema['required']);
     }
+
+    public function testGetOutputSchemaReturnsNull(): void
+    {
+        $this->assertNull($this->metadata->getOutputSchema());
+    }
+
+    public function testGetTitleReturnsNull(): void
+    {
+        $this->assertNull($this->metadata->getTitle());
+    }
+
+    public function testGetAnnotationsReturnsNull(): void
+    {
+        $this->assertNull($this->metadata->getAnnotations());
+    }
 }

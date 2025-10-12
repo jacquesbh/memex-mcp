@@ -295,6 +295,14 @@ Content');
         $this->service->delete('missing');
     }
 
+    public function testDeleteThrowsWhenFileDoesNotExist(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid file path for test: nonexistent-file');
+        
+        $this->service->delete('nonexistent-file');
+    }
+
     public function testDeleteThrowsOnPathTraversal(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -363,67 +371,20 @@ Content');
         $this->service->delete('../parent');
     }
 
-    public function testCompileCreatesJsonFile(): void
+    public function testValidateSlugThrowsOnPathTraversalWithDoubleDots(): void
     {
-        mkdir($this->tempDir . '/tests', 0755, true);
-        file_put_contents($this->tempDir . '/tests/item1.md', '---
-title: "Item 1"
----
-Content 1');
-        file_put_contents($this->tempDir . '/tests/item2.md', '---
-title: "Item 2"
----
-Content 2');
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid slug format');
         
-        $this->compilerService->method('compile')
-            ->willReturnCallback(function($content, $filename) {
-                return ['filename' => $filename, 'content' => substr($content, 0, 20)];
-            });
-        
-        $reflection = new \ReflectionClass($this->service);
-        $method = $reflection->getMethod('compile');
-        $method->setAccessible(true);
-        
-        $items = $method->invoke($this->service, true);
-        
-        $this->assertCount(2, $items);
-        $this->assertFileExists($this->tempDir . '/compiled/tests.json');
-        
-        $json = json_decode(file_get_contents($this->tempDir . '/compiled/tests.json'), true);
-        $this->assertSame(2, $json['total']);
-        $this->assertSame('test', $json['type']);
+        $this->service->delete('..');
     }
 
-    public function testCompileReturnsEmptyOnNonExistentDir(): void
+    public function testValidateSlugThrowsOnSlash(): void
     {
-        $reflection = new \ReflectionClass($this->service);
-        $method = $reflection->getMethod('compile');
-        $method->setAccessible(true);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid slug format');
         
-        $items = $method->invoke($this->service);
-        
-        $this->assertEmpty($items);
-    }
-
-    public function testGetOrCompileUsesExistingCompiled(): void
-    {
-        mkdir($this->tempDir . '/compiled', 0755, true);
-        $compiledData = [
-            'compiled_at' => date('c'),
-            'total' => 1,
-            'type' => 'test',
-            'items' => [['slug' => 'cached']]
-        ];
-        file_put_contents($this->tempDir . '/compiled/tests.json', json_encode($compiledData));
-        
-        $reflection = new \ReflectionClass($this->service);
-        $method = $reflection->getMethod('getOrCompile');
-        $method->setAccessible(true);
-        
-        $items = $method->invoke($this->service);
-        
-        $this->assertCount(1, $items);
-        $this->assertSame('cached', $items[0]['slug']);
+        $this->service->delete('path/to/file');
     }
 
     public function testSlugifyConvertsToLowerKebabCase(): void
@@ -484,15 +445,5 @@ Content 2');
         
         $dir = $method->invoke($this->service);
         $this->assertSame($this->tempDir . '/tests', $dir);
-    }
-
-    public function testGetCompiledPath(): void
-    {
-        $reflection = new \ReflectionClass($this->service);
-        $method = $reflection->getMethod('getCompiledPath');
-        $method->setAccessible(true);
-        
-        $path = $method->invoke($this->service);
-        $this->assertSame($this->tempDir . '/compiled/tests.json', $path);
     }
 }

@@ -10,6 +10,47 @@ use RuntimeException;
 
 final class ApplicationHelperTest extends TestCase
 {
+    private string $tempDir;
+    private ?string $originalCwd = null;
+
+    protected function setUp(): void
+    {
+        $this->tempDir = sys_get_temp_dir() . '/memex-test-' . uniqid();
+        mkdir($this->tempDir, 0755, true);
+        
+        $this->originalCwd = getcwd();
+        if ($this->originalCwd !== false) {
+            chdir($this->tempDir);
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        if ($this->originalCwd !== null && $this->originalCwd !== false) {
+            chdir($this->originalCwd);
+        }
+        
+        $this->cleanupDirectory($this->tempDir);
+    }
+
+    private function cleanupDirectory(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+
+        $files = array_diff(scandir($dir) ?: [], ['.', '..']);
+        foreach ($files as $file) {
+            $path = $dir . '/' . $file;
+            if (is_dir($path)) {
+                $this->cleanupDirectory($path);
+            } else {
+                unlink($path);
+            }
+        }
+        rmdir($dir);
+    }
+
     public function testGetDefaultKnowledgeBasePathReturnsValidPath(): void
     {
         $path = ApplicationHelper::getDefaultKnowledgeBasePath();
@@ -79,20 +120,29 @@ final class ApplicationHelperTest extends TestCase
 
     public function testResolveKnowledgeBasePathUsesDefaultWhenNull(): void
     {
-        $testPath = $_SERVER['HOME'] . '/.memex/knowledge-base';
-        if (!is_dir($testPath)) {
-            mkdir($testPath, 0755, true);
-            $cleanup = true;
-        }
+        $originalHome = $_SERVER['HOME'] ?? getenv('HOME');
         
-        $resolved = ApplicationHelper::resolveKnowledgeBasePath(null);
+        $fakeHome = sys_get_temp_dir() . '/memex-fake-home-' . uniqid();
+        mkdir($fakeHome, 0755, true);
+        $_SERVER['HOME'] = $fakeHome;
+        putenv("HOME={$fakeHome}");
         
-        $this->assertIsString($resolved);
-        $this->assertStringContainsString('/.memex/knowledge-base', $resolved);
+        $testPath = $fakeHome . '/.memex/knowledge-base';
+        mkdir($testPath, 0755, true);
         
-        if (isset($cleanup)) {
-            rmdir($testPath);
-            rmdir(dirname($testPath));
+        try {
+            $resolved = ApplicationHelper::resolveKnowledgeBasePath(null);
+            
+            $this->assertIsString($resolved);
+            $this->assertStringContainsString('/.memex/knowledge-base', $resolved);
+            $this->assertSame(realpath($testPath), $resolved);
+        } finally {
+            $this->cleanupDirectory($fakeHome);
+            
+            if ($originalHome !== false && $originalHome !== '') {
+                $_SERVER['HOME'] = $originalHome;
+                putenv("HOME={$originalHome}");
+            }
         }
     }
 
@@ -128,5 +178,43 @@ final class ApplicationHelperTest extends TestCase
             chmod($testPath, 0755);
             rmdir($testPath);
         }
+    }
+
+    public function testResolveKnowledgeBasePathUsesConfigWhenNoCliFlag(): void
+    {
+        $testKbPath = sys_get_temp_dir() . '/memex-test-kb-' . uniqid();
+        mkdir($testKbPath, 0755, true);
+        
+        $configPath = $this->tempDir . '/memex.json';
+        file_put_contents($configPath, json_encode([
+            'knowledgeBase' => $testKbPath,
+        ]));
+        
+        $resolved = ApplicationHelper::resolveKnowledgeBasePath(null);
+        
+        $this->assertSame(realpath($testKbPath), $resolved);
+        
+        rmdir($testKbPath);
+    }
+
+    public function testResolveKnowledgeBasePathPrefersCliFlagOverConfig(): void
+    {
+        $testKbPath = sys_get_temp_dir() . '/memex-test-kb-' . uniqid();
+        mkdir($testKbPath, 0755, true);
+        
+        $configKbPath = sys_get_temp_dir() . '/memex-test-config-kb-' . uniqid();
+        mkdir($configKbPath, 0755, true);
+        
+        $configPath = $this->tempDir . '/memex.json';
+        file_put_contents($configPath, json_encode([
+            'knowledgeBase' => $configKbPath,
+        ]));
+        
+        $resolved = ApplicationHelper::resolveKnowledgeBasePath($testKbPath);
+        
+        $this->assertSame(realpath($testKbPath), $resolved);
+        
+        rmdir($configKbPath);
+        rmdir($testKbPath);
     }
 }
