@@ -6,6 +6,7 @@
 
 **Dev:** `castor server`, `castor compile:guides`, `castor init`, `castor stats`
 **Prod:** `./memex server` (replace `castor` with `./memex`)
+**Custom KB:** Add `--kb=/path` to any command
 **Testing:** `make test` (PHPUnit), `make test-mcp` (MCP integration)
 **Build:** `make build` (creates binary)
 **Update:** `./memex --version`, `./memex check-update`, `./memex self-update`

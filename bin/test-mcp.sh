@@ -20,7 +20,7 @@ rm -rf "$TEST_KB"
 mkdir -p "$TEST_KB"
 
 echo -e "${YELLOW}📦 Initializing test knowledge base...${NC}"
-$MEMEX_BIN init --knowledge-base="$TEST_KB" >/dev/null 2>&1
+$MEMEX_BIN init --kb="$TEST_KB" >/dev/null 2>&1
 
 pass() {
     echo -e "${GREEN}✓ PASS${NC}: $1"
@@ -37,7 +37,7 @@ call_tool() {
     local arguments="$2"
 
     local cmd=(npx --yes @modelcontextprotocol/inspector 
-               --cli "$MEMEX_BIN" server --knowledge-base="$TEST_KB"
+               --cli "$MEMEX_BIN" server --kb="$TEST_KB"
                --method tools/call
                --tool-name "$tool_name")
 

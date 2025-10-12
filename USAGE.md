@@ -60,10 +60,10 @@ By default, the server uses `~/.memex/knowledge-base`. You can change this:
 
 ```bash
 # Absolute path
-castor server --knowledge-base=/shared/company-knowledge
+castor server --kb=/shared/company-knowledge
 
 # Relative path
-castor server --knowledge-base=./custom-kb
+castor server --kb=./custom-kb
 ```
 
 **Use cases**:
@@ -136,7 +136,7 @@ Edit `claude_desktop_config.json`:
 }
 ```
 
-**Custom knowledge base**: Add `"--knowledge-base=/shared/company-kb"` to `args` array.
+**Custom knowledge base**: Add `"--kb=/shared/company-kb"` to `args` array.
 
 ⚠️ Use absolute paths. Build binary: see [README.md](README.md).
 
@@ -199,7 +199,7 @@ Add to `~/.config/opencode/opencode.json`:
 }
 ```
 
-**Custom KB**: Add `"--knowledge-base=/path"` to command array.
+**Custom KB**: Add `"--kb=/path"` to command array.
 
 ---
 
@@ -309,12 +309,12 @@ castor stats
 **Load guide**: `"Load the guide for adding a Sylius menu"`  
 **Create guide**: `"Write a guide for implementing custom repository"`  
 **Load context + guide**: `"Load Sylius Expert context, then load the plugin guide"`  
-**Share KB**: Use `--knowledge-base=/shared/kb` across projects
+**Share KB**: Use `--kb=/shared/kb` across projects
 
 ## Tips
 
 - **Guides** = technical how-to | **Contexts** = AI personas
-- Share KB across projects with `--knowledge-base`
+- Share KB across projects with `--kb`
 - Use tags for organization
 - Version KB with Git
 

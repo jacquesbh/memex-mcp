@@ -28,7 +28,7 @@ const GITHUB_REPO = 'jacquesbh/memex-mcp';
 
 #[AsTask(description: 'Start the MCP server')]
 function server(
-    #[AsOption(shortcut: 'kb', description: 'Path to knowledge base directory')]
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null
 ): void
 {
@@ -51,7 +51,7 @@ function server(
 
 #[AsTask(description: 'Initialize knowledge base structure')]
 function init(
-    #[AsOption(description: 'Path to knowledge base directory', shortcut: 'kb')]
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null
 ): void
 {
@@ -93,7 +93,7 @@ function init(
 
 #[AsTask(description: 'Show knowledge base statistics')]
 function stats(
-    #[AsOption(description: 'Path to knowledge base directory', shortcut: 'kb')]
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null
 ): void
 {
@@ -116,7 +116,7 @@ function stats(
 
 #[AsTask(namespace: 'compile', description: 'Compile all guides for vector search')]
 function guides(
-    #[AsOption(description: 'Path to knowledge base directory', shortcut: 'kb')]
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null
 ): void
 {
@@ -142,7 +142,7 @@ function guides(
 
 #[AsTask(namespace: 'compile', description: 'Compile all contexts for vector search')]
 function contexts(
-    #[AsOption(description: 'Path to knowledge base directory', shortcut: 'kb')]
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null
 ): void
 {
@@ -168,7 +168,7 @@ function contexts(
 
 #[AsTask(description: 'Check system health and configuration')]
 function doctor(
-    #[AsOption(description: 'Path to knowledge base directory', shortcut: 'kb')]
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null
 ): void
 {
@@ -208,7 +208,7 @@ function doctor(
     if ($allGood) {
         io()->success('System check complete - all healthy!');
     } else {
-        io()->warning("Some checks failed - run `castor init --knowledge-base={$kbPath}` to initialize missing directories");
+        io()->warning("Some checks failed - run `castor init --kb={$kbPath}` to initialize missing directories");
     }
 }
 

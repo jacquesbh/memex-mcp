@@ -130,7 +130,7 @@ jobs:
         run: chmod +x memex
       
       - name: Initialize knowledge base
-        run: ./memex init --knowledge-base=/tmp/memex-ci-kb
+        run: ./memex init --kb=/tmp/memex-ci-kb
       
       - name: Run MCP Inspector tests
         run: bash bin/test-mcp.sh
