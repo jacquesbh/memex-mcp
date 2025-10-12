@@ -1,7 +1,7 @@
-.PHONY: help install clean build test test-mcp coverage
+.PHONY: help install clean build local.install test test-mcp coverage
 
 help: ## Display this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z._-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 install: vendor ## Install Composer dependencies
 
@@ -16,6 +16,15 @@ build: install ## Build the MEMEX binary (installs dependencies first)
 	chmod +x memex
 	@echo "\n✅ MEMEX binary created successfully!"
 	@echo "Test it with: ./memex --version"
+
+local.install: ## Install memex binary locally
+	$(eval CURRENT_MEMEX := $(shell which memex 2>/dev/null))
+	$(eval INSTALL_DIR := $(if $(CURRENT_MEMEX),$(dir $(CURRENT_MEMEX)),$(HOME)/bin/))
+	@mkdir -p $(INSTALL_DIR)
+	@cp memex $(INSTALL_DIR)memex
+	@chmod +x $(INSTALL_DIR)memex
+	@echo "\n✅ MEMEX installed successfully at: $(INSTALL_DIR)memex"
+	@echo "Version: $$($(INSTALL_DIR)memex --version)"
 
 test: vendor ## Run PHPUnit unit tests
 	vendor/bin/phpunit

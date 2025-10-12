@@ -32,6 +32,7 @@ git clone https://github.com/jacquesbh/memex-mcp.git
 cd memex-mcp
 make install
 make test
+make local.install  # Optional: Install binary locally (~/bin/memex or current memex location)
 ```
 
 ### Development Workflow
@@ -73,6 +74,8 @@ Found a typo? Unclear instructions? PRs welcome for:
 ```bash
 make test          # PHPUnit tests
 make test-mcp      # MCP integration tests (requires Node.js)
+make build         # Build binary
+make local.install # Install binary locally
 ```
 
 ## Areas We'd Love Help With
