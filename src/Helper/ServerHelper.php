@@ -18,6 +18,7 @@ use Symfony\AI\McpSdk\Server\RequestHandler\InitializeHandler;
 use Symfony\AI\McpSdk\Server\RequestHandler\PingHandler;
 use Symfony\AI\McpSdk\Server\RequestHandler\ToolCallHandler;
 use Symfony\AI\McpSdk\Server\RequestHandler\ToolListHandler;
+use Symfony\AI\Store\Document\Transformer\TextSplitTransformer;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Reference;
 
@@ -27,20 +28,32 @@ final readonly class ServerHelper
     {
         $container = new ContainerBuilder();
         
+        $chunkSize = (int) ($_ENV['OLLAMA_CHUNK_SIZE'] ?? 2000);
+        $chunkOverlap = (int) ($_ENV['OLLAMA_CHUNK_OVERLAP'] ?? 200);
+        $numCtx = (int) ($_ENV['OLLAMA_NUM_CTX'] ?? 512);
+        
         $container->register(PatternCompilerService::class);
         
+        $container->register(TextSplitTransformer::class)
+            ->addArgument($chunkSize)
+            ->addArgument($chunkOverlap);
+        
         $container->register(VectorService::class)
-            ->addArgument($kbPath);
+            ->addArgument($kbPath)
+            ->addArgument(new Reference(TextSplitTransformer::class))
+            ->addArgument($numCtx);
         
         $container->register(GuideService::class)
             ->addArgument($kbPath)
             ->addArgument(new Reference(PatternCompilerService::class))
-            ->addArgument(new Reference(VectorService::class));
+            ->addArgument(new Reference(VectorService::class))
+            ->setPublic(true);
         
         $container->register(ContextService::class)
             ->addArgument($kbPath)
             ->addArgument(new Reference(PatternCompilerService::class))
-            ->addArgument(new Reference(VectorService::class));
+            ->addArgument(new Reference(VectorService::class))
+            ->setPublic(true);
         
         $container->register(MemexToolChain::class)
             ->addArgument(new Reference(GuideService::class))

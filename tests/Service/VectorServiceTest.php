@@ -7,6 +7,7 @@ namespace Memex\Tests\Service;
 use Memex\Service\VectorService;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+use Symfony\AI\Store\Document\Transformer\TextSplitTransformer;
 
 final class VectorServiceTest extends TestCase
 {
@@ -21,8 +22,9 @@ final class VectorServiceTest extends TestCase
         if (getenv('SKIP_OLLAMA_TESTS') === '1') {
             $this->markTestSkipped('Ollama tests skipped');
         }
-        
-        $this->service = new VectorService($this->tempDir);
+
+        $chunker = new TextSplitTransformer(2000, 200);
+        $this->service = new VectorService($this->tempDir, $chunker, 512);
     }
 
     protected function tearDown(): void
@@ -97,8 +99,8 @@ final class VectorServiceTest extends TestCase
         ];
         
         $this->service->index('sectioned-guide', $compiled);
-        
-        $allResults = $this->service->search('PHP', 10, 0.0);
+
+        $allResults = $this->service->search('PHP', 10, 0.0, false);
         $sections = array_filter($allResults, fn($r) => $r['type'] === 'section');
         
         $this->assertCount(2, $sections);
@@ -118,8 +120,8 @@ final class VectorServiceTest extends TestCase
         ];
         
         $this->service->index('guide', $compiled);
-        
-        $allResults = $this->service->search('Symfony', 10, 0.0);
+
+        $allResults = $this->service->search('Symfony', 10, 0.0, false);
         $sections = array_filter($allResults, fn($r) => $r['type'] === 'section');
         
         $this->assertCount(1, $sections);
@@ -443,5 +445,77 @@ final class VectorServiceTest extends TestCase
         
         $sectionExists = $this->service->exists('with-sections_section_0');
         $this->assertFalse($sectionExists);
+    }
+
+    public function testChunkingLargeSection(): void
+    {
+        $largeContent = str_repeat('This is a test sentence about PHP programming. ', 200);
+
+        $compiled = [
+            'name' => 'Large Document',
+            'slug' => 'large-doc',
+            'content' => 'Short intro',
+            'sections' => [
+                ['title' => 'Large Section', 'content' => $largeContent, 'level' => 2]
+            ],
+            'metadata' => ['type' => 'guide', 'title' => 'Large Document', 'tags' => []]
+        ];
+
+        $this->service->index('large-doc', $compiled);
+
+        $allResults = $this->service->search('PHP', 100, 0.0, false);
+        $chunks = array_filter($allResults, fn($r) => $r['type'] === 'chunk');
+
+        $this->assertGreaterThan(0, count($chunks), 'Large section should be split into chunks');
+
+        foreach ($chunks as $chunk) {
+            $this->assertLessThanOrEqual(2000, mb_strlen($chunk['content']), 'Each chunk should be <= 2000 chars');
+        }
+    }
+
+    public function testSmallSectionNotChunked(): void
+    {
+        $smallContent = 'This is a small section content.';
+
+        $compiled = [
+            'name' => 'Small Document',
+            'slug' => 'small-doc',
+            'content' => 'Short intro',
+            'sections' => [
+                ['title' => 'Small Section', 'content' => $smallContent, 'level' => 2]
+            ],
+            'metadata' => ['type' => 'guide', 'title' => 'Small Document', 'tags' => []]
+        ];
+
+        $this->service->index('small-doc', $compiled);
+
+        $allResults = $this->service->search('small', 100, 0.0, false);
+        $chunks = array_filter($allResults, fn($r) => $r['type'] === 'chunk');
+        $sections = array_filter($allResults, fn($r) => $r['type'] === 'section');
+
+        $this->assertCount(0, $chunks, 'Small section should not be chunked');
+        $this->assertCount(1, $sections, 'Small section should be stored as section');
+    }
+
+    public function testChunkOverlap(): void
+    {
+        $content = str_repeat('ABCDEFGHIJ', 500);
+
+        $compiled = [
+            'name' => 'Overlap Test',
+            'slug' => 'overlap-test',
+            'content' => 'Short',
+            'sections' => [
+                ['title' => 'Section', 'content' => $content, 'level' => 2]
+            ],
+            'metadata' => ['type' => 'guide', 'title' => 'Overlap Test', 'tags' => []]
+        ];
+
+        $this->service->index('overlap-test', $compiled);
+
+        $allResults = $this->service->search('ABCDEFGHIJ', 100, 0.0, false);
+        $chunks = array_filter($allResults, fn($r) => $r['type'] === 'chunk');
+
+        $this->assertGreaterThanOrEqual(2, count($chunks), 'Content should be split into multiple chunks');
     }
 }

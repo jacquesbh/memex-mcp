@@ -151,16 +151,15 @@ function embed(
     io()->text("From: {$kbPath}");
     io()->newLine();
 
-    $compiler = new PatternCompilerService();
-    $vectorService = new VectorService($kbPath);
+    $container = ServerHelper::buildContainer($kbPath);
 
     io()->writeln('🔄 Indexing guides...');
-    $guideService = new GuideService($kbPath, $compiler, $vectorService);
+    $guideService = $container->get(GuideService::class);
     $guidesCount = $guideService->reindexAll($onlyNew);
     io()->writeln("  ✓ Indexed {$guidesCount} guides");
 
     io()->writeln('🔄 Indexing contexts...');
-    $contextService = new ContextService($kbPath, $compiler, $vectorService);
+    $contextService = $container->get(ContextService::class);
     $contextsCount = $contextService->reindexAll($onlyNew);
     io()->writeln("  ✓ Indexed {$contextsCount} contexts");
 

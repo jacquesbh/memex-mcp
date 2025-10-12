@@ -8,6 +8,8 @@
         "jolicode/castor": "^1.0",
         "laravel-zero/phar-updater": "^1.4",
         "league/commonmark": "^2.7",
+        "symfony/ai-platform": "dev-main",
+        "symfony/ai-store": "dev-main",
         "symfony/config": "^7.3",
         "symfony/console": "^7.2",
         "symfony/dependency-injection": "^7.3",

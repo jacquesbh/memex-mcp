@@ -6,6 +6,10 @@ namespace Memex\Service;
 
 use PDO;
 use RuntimeException;
+use Symfony\AI\Store\Document\Metadata;
+use Symfony\AI\Store\Document\TextDocument;
+use Symfony\AI\Store\Document\Transformer\TextSplitTransformer;
+use Symfony\Component\Uid\Uuid;
 
 class VectorService
 {
@@ -13,8 +17,14 @@ class VectorService
     private string $ollamaUrl = 'http://localhost:11434';
     private string $embeddingModel = 'nomic-embed-text';
 
-    public function __construct(string $knowledgeBasePath)
-    {
+    public function __construct(
+        string $knowledgeBasePath,
+        private readonly TextSplitTransformer $chunker = new TextSplitTransformer(
+            chunkSize: 2000,
+            overlap: 200
+        ),
+        private readonly int $numCtx = 512
+    ) {
         $vectorsDir = $knowledgeBasePath . '/.vectors';
         
         if (!is_dir($vectorsDir)) {
@@ -41,25 +51,32 @@ class VectorService
                 vector BLOB NOT NULL,
                 metadata TEXT,
                 created_at TEXT NOT NULL,
-                updated_at TEXT
+                updated_at TEXT,
+                parent_id TEXT,
+                chunk_index INTEGER
             );
             
             CREATE INDEX IF NOT EXISTS idx_type ON embeddings(type);
             CREATE INDEX IF NOT EXISTS idx_slug ON embeddings(slug);
+            CREATE INDEX IF NOT EXISTS idx_parent_id ON embeddings(parent_id);
         ');
     }
 
     public function index(string $slug, array $compiled): void
     {
-        $vector = $this->embedWithOllama($compiled['content']);
-        
+        $now = date('c');
         $stmt = $this->db->prepare('
             INSERT OR REPLACE INTO embeddings 
-            (id, type, slug, name, title, tags, content, vector, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, type, slug, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
-        
-        $now = date('c');
+
+        $contentForEmbedding = mb_strlen($compiled['content']) <= 4000
+            ? $compiled['content']
+            : mb_substr($compiled['content'], 0, 4000);
+
+        $vector = $this->embedWithOllama($contentForEmbedding);
+
         $stmt->execute([
             $slug,
             $compiled['metadata']['type'] ?? 'guide',
@@ -72,6 +89,8 @@ class VectorService
             json_encode($compiled),
             $compiled['metadata']['created'] ?? $now,
             $now,
+            null,
+            null,
         ]);
         
         foreach ($compiled['sections'] as $i => $section) {
@@ -80,29 +99,51 @@ class VectorService
             }
             
             $sectionText = $section['title'] . "\n\n" . $section['content'];
-            $sectionVector = $this->embedWithOllama($sectionText);
-            
-            $stmt->execute([
-                "{$slug}_section_{$i}",
-                'section',
-                $slug,
-                $compiled['name'],
-                $section['title'],
-                json_encode([]),
-                $section['content'],
-                $this->serializeVector($sectionVector),
-                json_encode([
-                    'parent_slug' => $slug,
-                    'section_index' => $i,
-                    'section_title' => $section['title'],
-                ]),
-                $now,
-                $now,
-            ]);
+            $sectionId = "{$slug}_section_{$i}";
+
+            $doc = new TextDocument(
+                Uuid::v4(),
+                $sectionText,
+                new Metadata(['section_title' => $section['title']])
+            );
+
+            $chunks = $this->chunker->transform([$doc]);
+            $chunkIndex = 0;
+
+            foreach ($chunks as $chunkDoc) {
+                $chunkContent = $chunkDoc->getContent();
+                $chunkVector = $this->embedWithOllama($chunkContent);
+
+                $metadata = $chunkDoc->getMetadata();
+                $isChunk = isset($metadata[Metadata::KEY_PARENT_ID]);
+
+                $stmt->execute([
+                    $isChunk ? "{$sectionId}_chunk_{$chunkIndex}" : $sectionId,
+                    $isChunk ? 'chunk' : 'section',
+                    $slug,
+                    $compiled['name'],
+                    $section['title'],
+                    json_encode([]),
+                    $chunkContent,
+                    $this->serializeVector($chunkVector),
+                    json_encode([
+                        'parent_slug' => $slug,
+                        'section_index' => $i,
+                        'section_title' => $section['title'],
+                        'is_chunk' => $isChunk,
+                    ]),
+                    $now,
+                    $now,
+                    $isChunk ? $sectionId : null,
+                    $isChunk ? $chunkIndex : null,
+                ]);
+
+                $chunkIndex++;
+            }
         }
     }
 
-    public function search(string $query, int $limit = 5, float $threshold = 0.5): array
+    public function search(string $query, int $limit = 5, float $threshold = 0.5, bool $returnParents = true): array
     {
         $queryVector = $this->embedWithOllama($query);
         
@@ -129,13 +170,54 @@ class VectorService
         }
         
         usort($results, fn($a, $b) => $b['score'] <=> $a['score']);
-        
-        return array_slice($results, 0, $limit);
+
+        if (!$returnParents) {
+            return array_slice($results, 0, $limit);
+        }
+
+        $matches = [];
+        foreach ($results as $result) {
+            $slug = $result['slug'];
+
+            if (!isset($matches[$slug]) || $matches[$slug]['score'] < $result['score']) {
+                $matches[$slug] = [
+                    'score' => $result['score'],
+                    'slug' => $slug,
+                    'matched_content' => $result['content'],
+                ];
+            }
+        }
+
+        $parentStmt = $this->db->prepare('SELECT * FROM embeddings WHERE slug = ? AND (type = "guide" OR type = "context") LIMIT 1');
+        $parentResults = [];
+
+        foreach ($matches as $match) {
+            $parentStmt->execute([$match['slug']]);
+            $parent = $parentStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($parent) {
+                $parentResults[] = [
+                    'score' => $match['score'],
+                    'id' => $parent['id'],
+                    'type' => $parent['type'],
+                    'slug' => $parent['slug'],
+                    'name' => $parent['name'],
+                    'title' => $parent['title'],
+                    'tags' => json_decode($parent['tags'], true),
+                    'content' => $match['matched_content'],
+                    'metadata' => json_decode($parent['metadata'], true),
+                ];
+            }
+        }
+
+        usort($parentResults, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($parentResults, 0, $limit);
     }
 
     public function listAll(?string $type = null): array
     {
-        $sql = 'SELECT * FROM embeddings WHERE type != "section"';
+        $sql = 'SELECT * FROM embeddings WHERE (type = "guide" OR type = "context")';
         $params = [];
         
         if ($type !== null) {
@@ -189,6 +271,9 @@ class VectorService
             CURLOPT_POSTFIELDS => json_encode([
                 'model' => $this->embeddingModel,
                 'prompt' => $text,
+                'options' => [
+                    'num_ctx' => $this->numCtx,
+                ],
             ]),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
