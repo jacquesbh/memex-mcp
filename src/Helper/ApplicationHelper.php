@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Memex\Helper;
 
+use Memex\Exception\KnowledgeBaseNotDirectoryException;
+use Memex\Exception\KnowledgeBaseNotFoundException;
+use Memex\Exception\KnowledgeBaseNotReadableException;
 use Memex\Service\ConfigService;
 use RuntimeException;
 use Symfony\Component\Dotenv\Dotenv;
@@ -29,15 +32,15 @@ final readonly class ApplicationHelper
         
         $realPath = realpath($resolvedPath);
         if ($realPath === false) {
-            throw new RuntimeException("Knowledge base path does not exist: {$resolvedPath}");
+            throw new KnowledgeBaseNotFoundException("Knowledge base path does not exist: {$resolvedPath}", $resolvedPath);
         }
         
         if (!is_dir($realPath)) {
-            throw new RuntimeException("Knowledge base path is not a directory: {$realPath}");
+            throw new KnowledgeBaseNotDirectoryException("Knowledge base path is not a directory: {$realPath}", $realPath);
         }
         
         if (!is_readable($realPath)) {
-            throw new RuntimeException("Knowledge base path is not readable: {$realPath}");
+            throw new KnowledgeBaseNotReadableException("Knowledge base path is not readable: {$realPath}", $realPath);
         }
         
         return $realPath;

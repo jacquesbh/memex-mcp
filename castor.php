@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
+use Memex\Exception\KnowledgeBaseNotDirectoryException;
+use Memex\Exception\KnowledgeBaseNotFoundException;
+use Memex\Exception\KnowledgeBaseNotReadableException;
 use Memex\Helper\ApplicationHelper;
 use Memex\Helper\ServerHelper;
 use Memex\Service\ContextService;
@@ -55,40 +58,54 @@ function init(
     ?string $knowledgeBase = null
 ): void
 {
-    $kbPath = $knowledgeBase ?? ApplicationHelper::getDefaultKnowledgeBasePath();
+    $initializeStructure = function(string $kbPath): void {
+        $dirs = [
+            "{$kbPath}/guides",
+            "{$kbPath}/contexts",
+            "{$kbPath}/.vectors",
+        ];
 
-    $dirs = [
-        "{$kbPath}/guides",
-        "{$kbPath}/contexts",
-        "{$kbPath}/.vectors",
-    ];
-
-    foreach ($dirs as $dir) {
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-            io()->success("Created {$dir}");
-        } else {
-            io()->note("{$dir} already exists");
+        foreach ($dirs as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+                io()->success("Created {$dir}");
+            } else {
+                io()->note("{$dir} already exists");
+            }
         }
-    }
 
-    $gitignorePath = "{$kbPath}/.gitignore";
-    $gitignoreContent = ".vectors/\n";
+        $gitignorePath = "{$kbPath}/.gitignore";
+        $gitignoreContent = ".vectors/\n";
 
-    if (!file_exists($gitignorePath)) {
-        file_put_contents($gitignorePath, $gitignoreContent);
-        io()->success("Created {$gitignorePath}");
-    } else {
-        $existingContent = file_get_contents($gitignorePath);
-        if (!str_contains($existingContent, '.vectors/')) {
-            file_put_contents($gitignorePath, $existingContent . $gitignoreContent);
-            io()->success("Updated {$gitignorePath}");
+        if (!file_exists($gitignorePath)) {
+            file_put_contents($gitignorePath, $gitignoreContent);
+            io()->success("Created {$gitignorePath}");
         } else {
-            io()->note("{$gitignorePath} already contains .vectors/");
+            $existingContent = file_get_contents($gitignorePath);
+            if (!str_contains($existingContent, '.vectors/')) {
+                file_put_contents($gitignorePath, $existingContent . $gitignoreContent);
+                io()->success("Updated {$gitignorePath}");
+            } else {
+                io()->note("{$gitignorePath} already contains .vectors/");
+            }
         }
-    }
 
-    io()->success("Knowledge base initialized at: {$kbPath}");
+        io()->success("Knowledge base initialized at: {$kbPath}");
+    };
+
+    try {
+        $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
+        io()->note("Knowledge base already exists at: {$kbPath}");
+        $initializeStructure($kbPath);
+    } catch (KnowledgeBaseNotFoundException $e) {
+        $kbPath = $e->realPath;
+        io()->writeln("Creating knowledge base at: {$kbPath}");
+        mkdir($kbPath, 0755, true);
+        $initializeStructure($kbPath);
+    } catch (KnowledgeBaseNotDirectoryException | KnowledgeBaseNotReadableException $e) {
+        io()->error($e->getMessage());
+        io()->note("Cannot initialize at path: {$e->realPath}");
+    }
 }
 
 #[AsTask(description: 'Show knowledge base statistics')]

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Memex\Tests\Helper;
 
+use Memex\Exception\KnowledgeBaseNotDirectoryException;
+use Memex\Exception\KnowledgeBaseNotFoundException;
+use Memex\Exception\KnowledgeBaseNotReadableException;
 use Memex\Helper\ApplicationHelper;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -97,10 +100,15 @@ final class ApplicationHelperTest extends TestCase
 
     public function testResolveKnowledgeBasePathThrowsOnNonExistentPath(): void
     {
-        $this->expectException(RuntimeException::class);
+        $this->expectException(KnowledgeBaseNotFoundException::class);
         $this->expectExceptionMessage('does not exist');
         
-        ApplicationHelper::resolveKnowledgeBasePath('/non/existent/path');
+        try {
+            ApplicationHelper::resolveKnowledgeBasePath('/non/existent/path');
+        } catch (KnowledgeBaseNotFoundException $e) {
+            $this->assertSame('/non/existent/path', $e->realPath);
+            throw $e;
+        }
     }
 
     public function testResolveKnowledgeBasePathThrowsOnFile(): void
@@ -108,11 +116,14 @@ final class ApplicationHelperTest extends TestCase
         $testFile = sys_get_temp_dir() . '/memex-test-file-' . uniqid();
         touch($testFile);
         
-        $this->expectException(RuntimeException::class);
+        $this->expectException(KnowledgeBaseNotDirectoryException::class);
         $this->expectExceptionMessage('not a directory');
         
         try {
             ApplicationHelper::resolveKnowledgeBasePath($testFile);
+        } catch (KnowledgeBaseNotDirectoryException $e) {
+            $this->assertSame(realpath($testFile), $e->realPath);
+            throw $e;
         } finally {
             unlink($testFile);
         }
@@ -169,11 +180,14 @@ final class ApplicationHelperTest extends TestCase
         $testPath = sys_get_temp_dir() . '/memex-test-unreadable-' . uniqid();
         mkdir($testPath, 0000, true);
         
-        $this->expectException(RuntimeException::class);
+        $this->expectException(KnowledgeBaseNotReadableException::class);
         $this->expectExceptionMessage('not readable');
         
         try {
             ApplicationHelper::resolveKnowledgeBasePath($testPath);
+        } catch (KnowledgeBaseNotReadableException $e) {
+            $this->assertSame(realpath($testPath), $e->realPath);
+            throw $e;
         } finally {
             chmod($testPath, 0755);
             rmdir($testPath);
