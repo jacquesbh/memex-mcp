@@ -23,7 +23,7 @@ final class GetContextToolExecutorTest extends TestCase
     {
         $contextData = [
             'name' => 'Test Context',
-            'metadata' => ['name' => 'Test Context', 'tags' => ['expert']],
+            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001', 'name' => 'Test Context', 'tags' => ['expert']],
             'content' => 'Context content',
             'sections' => [],
         ];
@@ -31,16 +31,17 @@ final class GetContextToolExecutorTest extends TestCase
         $service = $this->createMock(ContextService::class);
         $service->expects($this->once())
             ->method('get')
-            ->with('test query')
+            ->with('00000000-0000-4000-8000-000000000001')
             ->willReturn($contextData);
         
         $executor = new GetContextToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'get_context', ['query' => 'test query']);
+        $toolCall = new ToolCall('test-id', 'get_context', ['uuid' => '00000000-0000-4000-8000-000000000001']);
         
         $result = $executor->call($toolCall);
         
         $data = json_decode($result->result, true);
         $this->assertTrue($data['success']);
+        $this->assertSame('00000000-0000-4000-8000-000000000001', $data['uuid']);
         $this->assertSame('Test Context', $data['name']);
         $this->assertArrayHasKey('metadata', $data);
     }
@@ -52,7 +53,7 @@ final class GetContextToolExecutorTest extends TestCase
             ->willThrowException(new \RuntimeException('Context not found'));
         
         $executor = new GetContextToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'get_context', ['query' => 'nonexistent']);
+        $toolCall = new ToolCall('test-id', 'get_context', ['uuid' => '00000000-0000-4000-8000-000000000001']);
         
         $result = $executor->call($toolCall);
         

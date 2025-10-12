@@ -15,7 +15,7 @@ class GetContextToolMetadata extends AbstractToolMetadata
 
     public function getDescription(): ?string
     {
-        return 'Retrieve a context (prompt/persona/conventions) from the knowledge base using search query';
+        return 'Retrieve a context (prompt/persona/conventions) from the knowledge base by UUID';
     }
 
     public function getInputSchema(): array
@@ -23,12 +23,12 @@ class GetContextToolMetadata extends AbstractToolMetadata
         return [
             'type' => 'object',
             'properties' => [
-                'query' => [
+                'uuid' => [
                     'type' => 'string',
-                    'description' => 'Search query to find the context',
+                    'description' => 'UUID of the context (use list_contexts or search_knowledge_base to discover UUIDs)',
                 ],
             ],
-            'required' => ['query'],
+            'required' => ['uuid'],
         ];
     }
 }

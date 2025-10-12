@@ -24,11 +24,12 @@ class GetContextToolExecutor implements ToolExecutorInterface, IdentifierInterfa
     public function call(ToolCall $input): ToolCallResult
     {
         try {
-            $context = $this->contextService->get($input->arguments['query']);
+            $context = $this->contextService->get($input->arguments['uuid']);
             
             return new ToolCallResult(
                 json_encode([
                     'success' => true,
+                    'uuid' => $context['metadata']['uuid'] ?? null,
                     'name' => $context['name'],
                     'metadata' => $context['metadata'],
                     'content' => $context['content'],

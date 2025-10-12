@@ -24,11 +24,12 @@ class GetGuideToolExecutor implements ToolExecutorInterface, IdentifierInterface
     public function call(ToolCall $input): ToolCallResult
     {
         try {
-            $guide = $this->guideService->get($input->arguments['query']);
+            $guide = $this->guideService->get($input->arguments['uuid']);
             
             return new ToolCallResult(
                 json_encode([
                     'success' => true,
+                    'uuid' => $guide['metadata']['uuid'] ?? null,
                     'name' => $guide['name'],
                     'metadata' => $guide['metadata'],
                     'content' => $guide['content'],

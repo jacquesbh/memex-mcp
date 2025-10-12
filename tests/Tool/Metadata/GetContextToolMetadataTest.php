@@ -29,21 +29,21 @@ final class GetContextToolMetadataTest extends TestCase
         $this->assertStringContainsString('context', $description);
     }
 
-    public function testGetInputSchemaHasQueryProperty(): void
+    public function testGetInputSchemaHasUuidProperty(): void
     {
         $schema = $this->metadata->getInputSchema();
         
         $this->assertSame('object', $schema['type']);
         $this->assertArrayHasKey('properties', $schema);
-        $this->assertArrayHasKey('query', $schema['properties']);
-        $this->assertSame('string', $schema['properties']['query']['type']);
+        $this->assertArrayHasKey('uuid', $schema['properties']);
+        $this->assertSame('string', $schema['properties']['uuid']['type']);
     }
 
-    public function testGetInputSchemaRequiresQuery(): void
+    public function testGetInputSchemaRequiresUuid(): void
     {
         $schema = $this->metadata->getInputSchema();
         
         $this->assertArrayHasKey('required', $schema);
-        $this->assertContains('query', $schema['required']);
+        $this->assertContains('uuid', $schema['required']);
     }
 }

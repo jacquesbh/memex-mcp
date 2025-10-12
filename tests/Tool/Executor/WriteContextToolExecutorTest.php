@@ -24,11 +24,12 @@ final class WriteContextToolExecutorTest extends TestCase
         $service = $this->createMock(ContextService::class);
         $service->expects($this->once())
             ->method('write')
-            ->with('Test Context', 'Content', ['tag1'], false)
-            ->willReturn('test-context');
+            ->with('00000000-0000-4000-8000-000000000001', 'Test Context', 'Content', ['tag1'], false)
+            ->willReturn(['uuid' => '00000000-0000-4000-8000-000000000001', 'slug' => 'test-context', 'title' => 'Test Context']);
         
         $executor = new WriteContextToolExecutor($service);
         $toolCall = new ToolCall('test-id', 'write_context', [
+            'uuid' => '00000000-0000-4000-8000-000000000001',
             'name' => 'Test Context',
             'content' => 'Content',
             'tags' => ['tag1'],
@@ -39,6 +40,7 @@ final class WriteContextToolExecutorTest extends TestCase
         
         $data = json_decode($result->result, true);
         $this->assertTrue($data['success']);
+        $this->assertSame('00000000-0000-4000-8000-000000000001', $data['uuid']);
         $this->assertSame('test-context', $data['slug']);
         $this->assertSame('created', $data['action']);
     }
@@ -51,6 +53,7 @@ final class WriteContextToolExecutorTest extends TestCase
         
         $executor = new WriteContextToolExecutor($service);
         $toolCall = new ToolCall('test-id', 'write_context', [
+            'uuid' => '00000000-0000-4000-8000-000000000001',
             'name' => 'Test',
             'content' => 'Content',
         ]);

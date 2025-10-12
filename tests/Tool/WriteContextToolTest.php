@@ -13,14 +13,20 @@ final class WriteContextToolTest extends TestCase
 {
     public function testWriteCreatesNewContext(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
+        
         $service = $this->createMock(ContextService::class);
         $service->expects($this->once())
             ->method('write')
-            ->with('Test Context', 'Test content', ['php', 'testing'], false)
-            ->willReturn('test-context');
+            ->with($uuid, 'Test Context', 'Test content', ['php', 'testing'], false)
+            ->willReturn([
+                'uuid' => $uuid,
+                'slug' => 'test-context',
+                'title' => 'Test Context',
+            ]);
         
         $tool = new WriteContextTool($service);
-        $result = $tool->write('Test Context', 'Test content', ['php', 'testing'], false);
+        $result = $tool->write($uuid, 'Test Context', 'Test content', ['php', 'testing'], false);
         
         $this->assertTrue($result['success']);
         $this->assertSame('created', $result['action']);
@@ -32,14 +38,20 @@ final class WriteContextToolTest extends TestCase
 
     public function testWriteUpdatesExistingContext(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440001';
+        
         $service = $this->createMock(ContextService::class);
         $service->expects($this->once())
             ->method('write')
-            ->with('Existing Context', 'Updated content', ['updated'], true)
-            ->willReturn('existing-context');
+            ->with($uuid, 'Existing Context', 'Updated content', ['updated'], true)
+            ->willReturn([
+                'uuid' => $uuid,
+                'slug' => 'existing-context',
+                'title' => 'Existing Context',
+            ]);
         
         $tool = new WriteContextTool($service);
-        $result = $tool->write('Existing Context', 'Updated content', ['updated'], true);
+        $result = $tool->write($uuid, 'Existing Context', 'Updated content', ['updated'], true);
         
         $this->assertTrue($result['success']);
         $this->assertSame('updated', $result['action']);
@@ -49,14 +61,20 @@ final class WriteContextToolTest extends TestCase
 
     public function testWriteWithEmptyTags(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440002';
+        
         $service = $this->createMock(ContextService::class);
         $service->expects($this->once())
             ->method('write')
-            ->with('No Tags', 'Content', [], false)
-            ->willReturn('no-tags');
+            ->with($uuid, 'No Tags', 'Content', [], false)
+            ->willReturn([
+                'uuid' => $uuid,
+                'slug' => 'no-tags',
+                'title' => 'No Tags',
+            ]);
         
         $tool = new WriteContextTool($service);
-        $result = $tool->write('No Tags', 'Content');
+        $result = $tool->write($uuid, 'No Tags', 'Content');
         
         $this->assertTrue($result['success']);
         $this->assertSame('created', $result['action']);
@@ -65,13 +83,15 @@ final class WriteContextToolTest extends TestCase
 
     public function testWriteHandlesException(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440003';
+        
         $service = $this->createMock(ContextService::class);
         $service->expects($this->once())
             ->method('write')
             ->willThrowException(new RuntimeException('Write failed'));
         
         $tool = new WriteContextTool($service);
-        $result = $tool->write('Failed', 'Content');
+        $result = $tool->write($uuid, 'Failed', 'Content');
         
         $this->assertFalse($result['success']);
         $this->assertSame('Write failed', $result['error']);

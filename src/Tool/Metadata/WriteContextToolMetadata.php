@@ -23,6 +23,10 @@ class WriteContextToolMetadata extends AbstractToolMetadata
         return [
             'type' => 'object',
             'properties' => [
+                'uuid' => [
+                    'type' => 'string',
+                    'description' => 'UUID v4 identifier (generate with generate_uuid tool first)',
+                ],
                 'name' => [
                     'type' => 'string',
                     'description' => 'Name of the context',
@@ -43,7 +47,7 @@ class WriteContextToolMetadata extends AbstractToolMetadata
                     'default' => false,
                 ],
             ],
-            'required' => ['name', 'content'],
+            'required' => ['uuid', 'name', 'content'],
         ];
     }
 }

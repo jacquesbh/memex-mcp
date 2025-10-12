@@ -8,6 +8,7 @@ use Memex\Service\ContextService;
 use Memex\Service\PatternCompilerService;
 use Memex\Service\VectorService;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Uid\Uuid;
 use RuntimeException;
 
 final class ContextServiceTest extends TestCase
@@ -34,27 +35,31 @@ final class ContextServiceTest extends TestCase
 
     public function testWriteCreatesContextFile(): void
     {
-        $slug = $this->service->write('Test Context', 'Context content', ['expert', 'sylius']);
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $result = $this->service->write($uuid, 'Test Context', 'Context content', ['expert', 'sylius']);
         
-        $this->assertSame('test-context', $slug);
+        $this->assertSame($uuid, $result['uuid']);
+        $this->assertSame('test-context', $result['slug']);
         $this->assertFileExists($this->testKbPath . '/contexts/test-context.md');
     }
 
     public function testWriteGeneratesProperFrontmatter(): void
     {
-        $this->service->write('Test Context', 'Content', ['tag1', 'tag2']);
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, 'Test Context', 'Content', ['tag1', 'tag2']);
         
         $content = file_get_contents($this->testKbPath . '/contexts/test-context.md');
         
-        $this->assertStringContainsString('title: "Test Context"', $content);
+        $this->assertStringContainsString('title: Test Context', $content);
         $this->assertStringContainsString('type: context', $content);
-        $this->assertStringContainsString('tags: ["tag1", "tag2"]', $content);
+        $this->assertStringContainsString('tags: [tag1, tag2]', $content);
         $this->assertStringContainsString('created:', $content);
     }
 
     public function testDeleteRemovesContextFile(): void
     {
-        $this->service->write('Test Context', 'Content');
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, 'Test Context', 'Content');
         
         $result = $this->service->delete('test-context');
         
@@ -77,7 +82,8 @@ final class ContextServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Content cannot be empty');
         
-        $this->service->write('Title', '   ');
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, 'Title', '   ');
     }
 
     private function recursiveRemoveDirectory(string $dir): void

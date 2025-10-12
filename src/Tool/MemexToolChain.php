@@ -15,6 +15,7 @@ use Memex\Tool\Metadata\ListContextsToolMetadata;
 use Memex\Tool\Metadata\WriteContextToolMetadata;
 use Memex\Tool\Metadata\DeleteContextToolMetadata;
 use Memex\Tool\Metadata\SearchToolMetadata;
+use Memex\Tool\Metadata\GenerateUuidToolMetadata;
 use Memex\Tool\Executor\GetGuideToolExecutor;
 use Memex\Tool\Executor\ListGuidesToolExecutor;
 use Memex\Tool\Executor\WriteGuideToolExecutor;
@@ -24,6 +25,7 @@ use Memex\Tool\Executor\ListContextsToolExecutor;
 use Memex\Tool\Executor\WriteContextToolExecutor;
 use Memex\Tool\Executor\DeleteContextToolExecutor;
 use Memex\Tool\Executor\SearchToolExecutor;
+use Memex\Tool\Executor\GenerateUuidToolExecutor;
 use Symfony\AI\McpSdk\Capability\ToolChain;
 
 class MemexToolChain
@@ -35,6 +37,8 @@ class MemexToolChain
         ContextService $contextService
     ) {
         $this->chain = new ToolChain([
+            new GenerateUuidToolMetadata(),
+            new GenerateUuidToolExecutor(),
             new GetGuideToolMetadata(),
             new GetGuideToolExecutor($guideService),
             new ListGuidesToolMetadata(),

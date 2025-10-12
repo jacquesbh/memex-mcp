@@ -42,3 +42,27 @@ When adding a new MCP tool:
 2. Create `src/Tool/Executor/XxxToolExecutor.php` implementing `ToolExecutorInterface` + `IdentifierInterface`
 3. Add both to `MemexToolChain` constructor
 4. Test with Claude Desktop
+
+## MCP Tools Workflow (UUID-based)
+
+### Creating Guides/Contexts
+1. **Generate UUID**: Call `generate_uuid()` first
+2. **Write content**: Use `write_guide(uuid, title, content, tags)` or `write_context(uuid, name, content, tags)`
+3. **Store UUID**: The UUID is returned and should be used for future retrieval
+
+### Retrieving Content
+1. **List available**: `list_guides()` or `list_contexts()` returns all with UUIDs
+2. **Search**: `search_knowledge_base(query, type, limit)` for semantic search (returns UUIDs)
+3. **Get specific**: `get_guide(uuid)` or `get_context(uuid)` with exact UUID
+
+### File Format Requirements
+All Markdown files MUST include UUID in frontmatter:
+```markdown
+---
+uuid: "550e8400-e29b-41d4-a716-446655440000"
+title: "My Guide"
+type: guide
+tags: ["php"]
+created: 2025-01-15
+---
+```

@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 namespace Memex\Tests\Tool\Metadata;
 
-use Memex\Tool\Metadata\GetGuideToolMetadata;
+use Memex\Tool\Metadata\GenerateUuidToolMetadata;
 use PHPUnit\Framework\TestCase;
 
-final class GetGuideToolMetadataTest extends TestCase
+final class GenerateUuidToolMetadataTest extends TestCase
 {
-    private GetGuideToolMetadata $metadata;
+    private GenerateUuidToolMetadata $metadata;
 
     protected function setUp(): void
     {
-        $this->metadata = new GetGuideToolMetadata();
+        $this->metadata = new GenerateUuidToolMetadata();
     }
 
-    public function testGetNameReturnsGetGuide(): void
+    public function testGetNameReturnsGenerateUuid(): void
     {
-        $this->assertSame('get_guide', $this->metadata->getName());
+        $this->assertSame('generate_uuid', $this->metadata->getName());
     }
 
     public function testGetDescriptionReturnsString(): void
@@ -26,25 +26,18 @@ final class GetGuideToolMetadataTest extends TestCase
         $description = $this->metadata->getDescription();
         
         $this->assertIsString($description);
-        $this->assertStringContainsString('guide', $description);
+        $this->assertStringContainsString('UUID', $description);
+        $this->assertStringContainsString('write_guide', $description);
     }
 
-    public function testGetInputSchemaHasUuidProperty(): void
+    public function testGetInputSchemaHasNoProperties(): void
     {
         $schema = $this->metadata->getInputSchema();
         
         $this->assertSame('object', $schema['type']);
         $this->assertArrayHasKey('properties', $schema);
-        $this->assertArrayHasKey('uuid', $schema['properties']);
-        $this->assertSame('string', $schema['properties']['uuid']['type']);
-    }
-
-    public function testGetInputSchemaRequiresUuid(): void
-    {
-        $schema = $this->metadata->getInputSchema();
-        
-        $this->assertArrayHasKey('required', $schema);
-        $this->assertContains('uuid', $schema['required']);
+        $this->assertIsObject($schema['properties']);
+        $this->assertEmpty((array)$schema['properties']);
     }
 
     public function testGetOutputSchemaReturnsNull(): void

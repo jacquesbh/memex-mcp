@@ -66,6 +66,7 @@ final class VectorServiceTest extends TestCase
             'content' => 'This is test content',
             'sections' => [],
             'metadata' => [
+                'uuid' => '00000000-0000-4000-8000-000000000001',
                 'type' => 'guide',
                 'title' => 'Test Guide',
                 'tags' => ['php', 'testing'],
@@ -73,7 +74,7 @@ final class VectorServiceTest extends TestCase
             ]
         ];
         
-        $this->service->index('test-guide', $compiled);
+        $this->service->index('test-guide', '87aacdf4-0000-4000-8000-26180b93b1f9', $compiled);
         
         $results = $this->service->listAll();
         $this->assertCount(1, $results);
@@ -92,13 +93,14 @@ final class VectorServiceTest extends TestCase
                 ['title' => 'Section 2', 'content' => 'Content about PHP advanced', 'level' => 2],
             ],
             'metadata' => [
+                'uuid' => '00000000-0000-4000-8000-000000000001',
                 'type' => 'guide',
                 'title' => 'Guide with Sections',
                 'tags' => []
             ]
         ];
         
-        $this->service->index('sectioned-guide', $compiled);
+        $this->service->index('sectioned-guide', '935113f2-0000-4000-8000-b5083154019d', $compiled);
 
         $allResults = $this->service->search('PHP', 10, 0.0, false);
         $sections = array_filter($allResults, fn($r) => $r['type'] === 'section');
@@ -116,10 +118,11 @@ final class VectorServiceTest extends TestCase
                 ['title' => 'Section 1', 'content' => 'Content about Symfony framework', 'level' => 2],
                 ['title' => 'Empty', 'content' => '   ', 'level' => 2],
             ],
-            'metadata' => ['type' => 'guide', 'title' => 'Guide', 'tags' => []]
+            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001',
+                'type' => 'guide', 'title' => 'Guide', 'tags' => []]
         ];
         
-        $this->service->index('guide', $compiled);
+        $this->service->index('guide', 'ca9ec735-0000-4000-8000-a0c391dc49c4', $compiled);
 
         $allResults = $this->service->search('Symfony', 10, 0.0, false);
         $sections = array_filter($allResults, fn($r) => $r['type'] === 'section');
@@ -129,21 +132,21 @@ final class VectorServiceTest extends TestCase
 
     public function testSearchReturnsSimilarDocuments(): void
     {
-        $this->service->index('doc1', [
+        $this->service->index('doc1', 'c9850b0b-0000-4000-8000-83e4b1789306', [
             'name' => 'PHP Doc 1',
             'content' => 'Document about PHP programming and development',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'PHP Doc 1', 'tags' => []]
         ]);
         
-        $this->service->index('doc2', [
+        $this->service->index('doc2', '508c5ab1-0000-4000-8000-271559ec2526', [
             'name' => 'PHP Doc 2',
             'content' => 'Another PHP document for programming',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'PHP Doc 2', 'tags' => []]
         ]);
         
-        $this->service->index('doc3', [
+        $this->service->index('doc3', '278b6a27-0000-4000-8000-af75c71ac23e', [
             'name' => 'JS Doc',
             'content' => 'JavaScript tutorial for web development',
             'sections' => [],
@@ -160,7 +163,7 @@ final class VectorServiceTest extends TestCase
     public function testSearchRespectsLimit(): void
     {
         for ($i = 1; $i <= 10; $i++) {
-            $this->service->index("doc{$i}", [
+            $this->service->index("doc{$i}", "dc541354-0000-4000-8000-5605587157f7", [
                 'name' => "Doc {$i}",
                 'content' => "Content {$i}",
                 'sections' => [],
@@ -175,14 +178,14 @@ final class VectorServiceTest extends TestCase
 
     public function testSearchRespectsThreshold(): void
     {
-        $this->service->index('similar', [
+        $this->service->index('similar', 'cbbb389d-0000-4000-8000-10faae554c64', [
             'name' => 'Similar',
             'content' => 'PHP programming language documentation',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'Similar', 'tags' => []]
         ]);
         
-        $this->service->index('different', [
+        $this->service->index('different', '6c0780e3-0000-4000-8000-29e4b66fa807', [
             'name' => 'Different',
             'content' => 'Quantum physics and advanced mathematics',
             'sections' => [],
@@ -200,21 +203,21 @@ final class VectorServiceTest extends TestCase
 
     public function testSearchReturnsSortedResults(): void
     {
-        $this->service->index('php', [
+        $this->service->index('php', '569121d1-0000-4000-8000-e1bfd762321e', [
             'name' => 'PHP',
             'content' => 'PHP programming language',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'PHP', 'tags' => []]
         ]);
         
-        $this->service->index('python', [
+        $this->service->index('python', 'a4d4b8b8-0000-4000-8000-23eeeb4347bd', [
             'name' => 'Python',
             'content' => 'Python programming language',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'Python', 'tags' => []]
         ]);
         
-        $this->service->index('javascript', [
+        $this->service->index('javascript', '84ea90f7-0000-4000-8000-de9b9ed78d7e', [
             'name' => 'JavaScript',
             'content' => 'JavaScript programming language',
             'sections' => [],
@@ -231,21 +234,21 @@ final class VectorServiceTest extends TestCase
 
     public function testListAllReturnsAllDocuments(): void
     {
-        $this->service->index('guide1', [
+        $this->service->index('guide1', 'd5a5b553-0000-4000-8000-f510e23d073d', [
             'name' => 'Guide 1',
             'content' => 'Content 1',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'Guide 1', 'tags' => []]
         ]);
         
-        $this->service->index('guide2', [
+        $this->service->index('guide2', '4cace4e9-0000-4000-8000-f6ea0da319e7', [
             'name' => 'Guide 2',
             'content' => 'Content 2',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'Guide 2', 'tags' => []]
         ]);
         
-        $this->service->index('context1', [
+        $this->service->index('context1', '3483ee09-0000-4000-8000-14c1126e07fa', [
             'name' => 'Context 1',
             'content' => 'Content 3',
             'sections' => [],
@@ -259,14 +262,14 @@ final class VectorServiceTest extends TestCase
 
     public function testListAllFiltersByType(): void
     {
-        $this->service->index('guide1', [
+        $this->service->index('guide1', 'd5a5b553-0000-4000-8000-f510e23d073d', [
             'name' => 'Guide 1',
             'content' => 'Content',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'Guide 1', 'tags' => []]
         ]);
         
-        $this->service->index('context1', [
+        $this->service->index('context1', '3483ee09-0000-4000-8000-14c1126e07fa', [
             'name' => 'Context 1',
             'content' => 'Content',
             'sections' => [],
@@ -284,7 +287,7 @@ final class VectorServiceTest extends TestCase
 
     public function testListAllExcludesSections(): void
     {
-        $this->service->index('guide', [
+        $this->service->index('guide', 'ca9ec735-0000-4000-8000-a0c391dc49c4', [
             'name' => 'Guide',
             'content' => 'Main',
             'sections' => [
@@ -301,7 +304,7 @@ final class VectorServiceTest extends TestCase
 
     public function testDeleteRemovesDocumentAndSections(): void
     {
-        $this->service->index('to-delete', [
+        $this->service->index('to-delete', '6737b118-0000-4000-8000-c134bdc40d21', [
             'name' => 'To Delete',
             'content' => 'Main content about Laravel',
             'sections' => [
@@ -331,14 +334,14 @@ final class VectorServiceTest extends TestCase
 
     public function testIndexUpdatesExistingDocument(): void
     {
-        $this->service->index('update-test', [
+        $this->service->index('update-test', '8f019a3c-0000-4000-8000-fd5b783b0dff', [
             'name' => 'Original',
             'content' => 'Original content',
             'sections' => [],
             'metadata' => ['type' => 'guide', 'title' => 'Original', 'tags' => []]
         ]);
         
-        $this->service->index('update-test', [
+        $this->service->index('update-test', '8f019a3c-0000-4000-8000-fd5b783b0dff', [
             'name' => 'Updated',
             'content' => 'Updated content',
             'sections' => [],
@@ -352,7 +355,7 @@ final class VectorServiceTest extends TestCase
 
     public function testSearchReturnsMetadataFields(): void
     {
-        $this->service->index('test', [
+        $this->service->index('test', 'd87f7e0c-0000-4000-8000-098f6bcd4621', [
             'name' => 'Test',
             'content' => 'Test content',
             'sections' => [],
@@ -386,7 +389,7 @@ final class VectorServiceTest extends TestCase
 
     public function testListAllOrdersByCreatedAtDesc(): void
     {
-        $this->service->index('old', [
+        $this->service->index('old', '3f5dd4e5-0000-4000-8000-149603e6c035', [
             'name' => 'Old',
             'content' => 'Content',
             'sections' => [],
@@ -395,7 +398,7 @@ final class VectorServiceTest extends TestCase
         
         sleep(1);
         
-        $this->service->index('new', [
+        $this->service->index('new', '6be34445-0000-4000-8000-22af645d1859', [
             'name' => 'New',
             'content' => 'Content',
             'sections' => [],
@@ -410,7 +413,7 @@ final class VectorServiceTest extends TestCase
 
     public function testExistsReturnsTrueForExistingDocument(): void
     {
-        $this->service->index('exists-test', [
+        $this->service->index('exists-test', '287e2e84-0000-4000-8000-5c26b41580bd', [
             'name' => 'Exists Test',
             'content' => 'Content',
             'sections' => [],
@@ -431,7 +434,7 @@ final class VectorServiceTest extends TestCase
 
     public function testExistsIgnoresSections(): void
     {
-        $this->service->index('with-sections', [
+        $this->service->index('with-sections', 'ccc9f637-0000-4000-8000-993638a612c6', [
             'name' => 'With Sections',
             'content' => 'Main content',
             'sections' => [
@@ -458,10 +461,11 @@ final class VectorServiceTest extends TestCase
             'sections' => [
                 ['title' => 'Large Section', 'content' => $largeContent, 'level' => 2]
             ],
-            'metadata' => ['type' => 'guide', 'title' => 'Large Document', 'tags' => []]
+            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001',
+                'type' => 'guide', 'title' => 'Large Document', 'tags' => []]
         ];
 
-        $this->service->index('large-doc', $compiled);
+        $this->service->index('large-doc', '54939373-0000-4000-8000-84c63000e801', $compiled);
 
         $allResults = $this->service->search('PHP', 100, 0.0, false);
         $chunks = array_filter($allResults, fn($r) => $r['type'] === 'chunk');
@@ -484,10 +488,11 @@ final class VectorServiceTest extends TestCase
             'sections' => [
                 ['title' => 'Small Section', 'content' => $smallContent, 'level' => 2]
             ],
-            'metadata' => ['type' => 'guide', 'title' => 'Small Document', 'tags' => []]
+            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001',
+                'type' => 'guide', 'title' => 'Small Document', 'tags' => []]
         ];
 
-        $this->service->index('small-doc', $compiled);
+        $this->service->index('small-doc', '41a41f7d-0000-4000-8000-80e221d255bb', $compiled);
 
         $allResults = $this->service->search('small', 100, 0.0, false);
         $chunks = array_filter($allResults, fn($r) => $r['type'] === 'chunk');
@@ -508,14 +513,57 @@ final class VectorServiceTest extends TestCase
             'sections' => [
                 ['title' => 'Section', 'content' => $content, 'level' => 2]
             ],
-            'metadata' => ['type' => 'guide', 'title' => 'Overlap Test', 'tags' => []]
+            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001',
+                'type' => 'guide', 'title' => 'Overlap Test', 'tags' => []]
         ];
 
-        $this->service->index('overlap-test', $compiled);
+        $this->service->index('overlap-test', 'bfd23c00-0000-4000-8000-e7926e651739', $compiled);
 
         $allResults = $this->service->search('ABCDEFGHIJ', 100, 0.0, false);
         $chunks = array_filter($allResults, fn($r) => $r['type'] === 'chunk');
 
         $this->assertGreaterThanOrEqual(2, count($chunks), 'Content should be split into multiple chunks');
+    }
+
+    public function testGetByUuidReturnsDocument(): void
+    {
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
+        $this->service->index('test-doc', $uuid, [
+            'name' => 'Test Document',
+            'content' => 'Test content',
+            'sections' => [],
+            'metadata' => ['type' => 'guide', 'title' => 'Test Document', 'tags' => ['test']]
+        ]);
+
+        $result = $this->service->getByUuid($uuid);
+
+        $this->assertNotNull($result);
+        $this->assertSame($uuid, $result['uuid']);
+        $this->assertSame('test-doc', $result['slug']);
+    }
+
+    public function testGetByUuidReturnsNullForNonExistent(): void
+    {
+        $result = $this->service->getByUuid('550e8400-e29b-41d4-a716-446655440999');
+
+        $this->assertNull($result);
+    }
+
+    public function testExistsByUuidReturnsTrueForExisting(): void
+    {
+        $uuid = '550e8400-e29b-41d4-a716-446655440001';
+        $this->service->index('doc', $uuid, [
+            'name' => 'Doc',
+            'content' => 'Content',
+            'sections' => [],
+            'metadata' => ['type' => 'guide', 'title' => 'Doc', 'tags' => []]
+        ]);
+
+        $this->assertTrue($this->service->existsByUuid($uuid));
+    }
+
+    public function testExistsByUuidReturnsFalseForNonExistent(): void
+    {
+        $this->assertFalse($this->service->existsByUuid('550e8400-e29b-41d4-a716-446655440888'));
     }
 }

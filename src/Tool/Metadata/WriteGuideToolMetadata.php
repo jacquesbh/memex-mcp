@@ -23,6 +23,10 @@ class WriteGuideToolMetadata extends AbstractToolMetadata
         return [
             'type' => 'object',
             'properties' => [
+                'uuid' => [
+                    'type' => 'string',
+                    'description' => 'UUID v4 identifier (generate with generate_uuid tool first)',
+                ],
                 'title' => [
                     'type' => 'string',
                     'description' => 'Title of the guide',
@@ -43,7 +47,7 @@ class WriteGuideToolMetadata extends AbstractToolMetadata
                     'default' => false,
                 ],
             ],
-            'required' => ['title', 'content'],
+            'required' => ['uuid', 'title', 'content'],
         ];
     }
 }

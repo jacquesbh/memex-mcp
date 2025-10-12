@@ -9,6 +9,7 @@ use Memex\Service\ContentService;
 use Memex\Service\PatternCompilerService;
 use Memex\Service\VectorService;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Uid\Uuid;
 use RuntimeException;
 
 final class ContentServiceTest extends TestCase
@@ -53,111 +54,57 @@ final class ContentServiceTest extends TestCase
         rmdir($dir);
     }
 
-    public function testGetReturnsItemMetadata(): void
+    public function testGetReturnsItemByUuid(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
         $expectedMetadata = [
+            'uuid' => $uuid,
             'slug' => 'test-item',
-            'title' => 'Test Item',
-            'metadata' => ['created' => '2025-01-01']
+            'title' => 'Test Item'
         ];
         
         $this->vectorService->expects($this->once())
-            ->method('search')
-            ->with('test query', 1, 0.6)
+            ->method('getByUuid')
+            ->with($uuid)
             ->willReturn([
-                [
-                    'type' => 'item',
-                    'slug' => 'test-item',
-                    'metadata' => $expectedMetadata
-                ]
+                'uuid' => $uuid,
+                'slug' => 'test-item',
+                'metadata' => $expectedMetadata
             ]);
         
-        $result = $this->service->get('test query');
+        $result = $this->service->get($uuid);
         
         $this->assertSame($expectedMetadata, $result);
     }
 
-    public function testGetThrowsWhenNoResults(): void
+    public function testGetThrowsWhenUuidNotFound(): void
     {
-        $this->vectorService->method('search')->willReturn([]);
+        $uuid = '550e8400-e29b-41d4-a716-446655440001';
+        
+        $this->vectorService->method('getByUuid')->willReturn(null);
         
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('test not found: no results');
+        $this->expectExceptionMessage("test not found with UUID: {$uuid}");
         
-        $this->service->get('no results');
+        $this->service->get($uuid);
     }
 
-    public function testGetHandlesSectionWithParent(): void
+    public function testGetThrowsOnInvalidUuid(): void
     {
-        $parentMetadata = [
-            'slug' => 'parent-item',
-            'title' => 'Parent Item'
-        ];
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid UUID v4 format');
         
-        $this->vectorService->expects($this->once())
-            ->method('search')
-            ->willReturn([
-                [
-                    'type' => 'section',
-                    'slug' => 'section-item',
-                    'metadata' => [
-                        'parent_slug' => 'parent-item'
-                    ]
-                ]
-            ]);
-        
-        $this->vectorService->expects($this->once())
-            ->method('listAll')
-            ->with('test')
-            ->willReturn([
-                [
-                    'slug' => 'parent-item',
-                    'metadata' => $parentMetadata
-                ]
-            ]);
-        
-        $result = $this->service->get('section query');
-        
-        $this->assertSame($parentMetadata, $result);
-    }
-
-    public function testGetHandlesSectionWithoutParentInList(): void
-    {
-        $sectionMetadata = [
-            'slug' => 'section-item',
-            'parent_slug' => 'parent-item',
-            'title' => 'Section'
-        ];
-        
-        $this->vectorService->expects($this->once())
-            ->method('search')
-            ->willReturn([
-                [
-                    'type' => 'section',
-                    'slug' => 'section-item',
-                    'metadata' => $sectionMetadata
-                ]
-            ]);
-        
-        $this->vectorService->expects($this->once())
-            ->method('listAll')
-            ->with('test')
-            ->willReturn([
-                [
-                    'slug' => 'different-item',
-                    'metadata' => ['title' => 'Different']
-                ]
-            ]);
-        
-        $result = $this->service->get('section query');
-        
-        $this->assertSame($sectionMetadata, $result);
+        $this->service->get('invalid-uuid');
     }
 
     public function testListReturnsFormattedItems(): void
     {
+        $uuid1 = '550e8400-e29b-41d4-a716-446655440000';
+        $uuid2 = '550e8400-e29b-41d4-a716-446655440001';
+        
         $items = [
             [
+                'uuid' => $uuid1,
                 'slug' => 'item-1',
                 'name' => 'Item 1',
                 'title' => 'First Item',
@@ -170,6 +117,7 @@ final class ContentServiceTest extends TestCase
                 ]
             ],
             [
+                'uuid' => $uuid2,
                 'slug' => 'item-2',
                 'name' => 'Item 2',
                 'title' => 'Second Item',
@@ -186,6 +134,7 @@ final class ContentServiceTest extends TestCase
         $result = $this->service->list();
         
         $this->assertCount(2, $result);
+        $this->assertSame($uuid1, $result[0]['uuid']);
         $this->assertSame('item-1', $result[0]['slug']);
         $this->assertSame('Item 1', $result[0]['name']);
         $this->assertSame('2025-01-01', $result[0]['created']);
@@ -217,48 +166,57 @@ final class ContentServiceTest extends TestCase
         
         $this->vectorService->expects($this->once())
             ->method('index')
-            ->with('test-title', ['name' => 'test', 'slug' => 'test-title']);
+            ->with('test-title', $this->anything(), ['name' => 'test', 'slug' => 'test-title']);
         
-        $slug = $this->service->write('Test Title', 'Test content', ['tag1', 'tag2']);
-        
-        $this->assertSame('test-title', $slug);
+        $uuid = Uuid::v4()->toString();
+        $result = $this->service->write($uuid, 'Test Title', 'Test content', ['tag1', 'tag2']);
+        $this->assertSame('test-title', $result['slug']);
         $this->assertFileExists($this->tempDir . '/tests/test-title.md');
         
         $content = file_get_contents($this->tempDir . '/tests/test-title.md');
-        $this->assertStringContainsString('title: "Test Title"', $content);
+        $this->assertStringContainsString('title: Test Title', $content);
         $this->assertStringContainsString('type: test', $content);
-        $this->assertStringContainsString('tags: ["tag1", "tag2"]', $content);
+        $this->assertStringContainsString('tags: [tag1, tag2]', $content);
         $this->assertStringContainsString('Test content', $content);
     }
 
     public function testWriteThrowsWhenFileExistsWithoutOverwrite(): void
     {
-        mkdir($this->tempDir . '/tests', 0755, true);
-        file_put_contents($this->tempDir . '/tests/existing.md', 'content');
+        $uuid = Uuid::v4()->toString();
+        
+        $this->vectorService->expects($this->exactly(2))
+            ->method('getByUuid')
+            ->with($uuid)
+            ->willReturnOnConsecutiveCalls(
+                null,
+                ['uuid' => $uuid, 'slug' => 'existing', 'content' => 'Old']
+            );
+        
+        $this->service->write($uuid, 'Existing', 'Content');
         
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('test already exists: existing');
+        $this->expectExceptionMessage("Content with UUID {$uuid} already exists");
         
-        $this->service->write('Existing', 'New content');
+        $this->service->write($uuid, 'Existing', 'New content');
     }
 
     public function testWriteOverwritesWithFlag(): void
     {
+        $uuid = Uuid::v4()->toString();
+        
+        $this->vectorService->expects($this->exactly(2))
+            ->method('getByUuid')
+            ->with($uuid)
+            ->willReturnOnConsecutiveCalls(
+                null,
+                ['uuid' => $uuid, 'slug' => 'existing', 'content' => 'Old']
+            );
+        
         mkdir($this->tempDir . '/tests', 0755, true);
-        file_put_contents($this->tempDir . '/tests/existing.md', '---
-title: "Old"
-created: 2025-01-01
----
-Old content');
+        $this->service->write($uuid, 'Existing', 'Old content');
+        $result = $this->service->write($uuid, 'Existing', 'New content', [], true);
         
-        $this->compilerService->method('compile')
-            ->willReturn(['name' => 'test', 'slug' => 'existing']);
-        
-        $this->vectorService->expects($this->once())->method('index');
-        
-        $slug = $this->service->write('Existing', 'New content', [], true);
-        
-        $this->assertSame('existing', $slug);
+        $this->assertSame('existing', $result['slug']);
         $content = file_get_contents($this->tempDir . '/tests/existing.md');
         $this->assertStringContainsString('New content', $content);
         $this->assertStringContainsString('updated:', $content);
@@ -316,7 +274,8 @@ Content');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('invalid characters');
         
-        $this->service->write('Title with <script>', 'content');
+        $uuid = Uuid::v4()->toString();
+        $this->service->write($uuid, 'Title with <script>', 'content');
     }
 
     public function testValidateTitleThrowsOnTooLong(): void
@@ -326,7 +285,8 @@ Content');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('too long');
         
-        $this->service->write($longTitle, 'content');
+        $uuid = Uuid::v4()->toString();
+        $this->service->write($uuid, $longTitle, 'content');
     }
 
     public function testValidateTitleThrowsOnEmpty(): void
@@ -334,7 +294,8 @@ Content');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('cannot be empty');
         
-        $this->service->write('   ', 'content');
+        $uuid = Uuid::v4()->toString();
+        $this->service->write($uuid, '   ', 'content');
     }
 
     public function testValidateContentThrowsOnTooLarge(): void
@@ -344,7 +305,8 @@ Content');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('too large');
         
-        $this->service->write('Title', $largeContent);
+        $uuid = Uuid::v4()->toString();
+        $this->service->write($uuid, 'Title', $largeContent);
     }
 
     public function testValidateContentThrowsOnEmpty(): void
@@ -352,7 +314,8 @@ Content');
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('cannot be empty');
         
-        $this->service->write('Title', '   ');
+        $uuid = Uuid::v4()->toString();
+        $this->service->write($uuid, 'Title', '   ');
     }
 
     public function testValidateSlugThrowsOnInvalidFormat(): void
@@ -402,27 +365,31 @@ Content');
 
     public function testBuildFrontmatterForNewItem(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
         $reflection = new \ReflectionClass($this->service);
         $method = $reflection->getMethod('buildFrontmatter');
         $method->setAccessible(true);
         
-        $frontmatter = $method->invoke($this->service, 'Test Title', ['tag1', 'tag2'], false);
+        $frontmatter = $method->invoke($this->service, $uuid, 'Test Title', ['tag1', 'tag2'], false);
         
-        $this->assertStringContainsString('title: "Test Title"', $frontmatter);
+        $this->assertStringContainsString("uuid: {$uuid}", $frontmatter);
+        $this->assertStringContainsString('title: Test Title', $frontmatter);
         $this->assertStringContainsString('type: test', $frontmatter);
-        $this->assertStringContainsString('tags: ["tag1", "tag2"]', $frontmatter);
+        $this->assertStringContainsString('tags: [tag1, tag2]', $frontmatter);
         $this->assertStringContainsString('created:', $frontmatter);
         $this->assertStringNotContainsString('updated:', $frontmatter);
     }
 
     public function testBuildFrontmatterForUpdate(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440001';
         $reflection = new \ReflectionClass($this->service);
         $method = $reflection->getMethod('buildFrontmatter');
         $method->setAccessible(true);
         
-        $frontmatter = $method->invoke($this->service, 'Updated Title', [], true);
+        $frontmatter = $method->invoke($this->service, $uuid, 'Updated Title', [], true);
         
+        $this->assertStringContainsString("uuid: {$uuid}", $frontmatter);
         $this->assertStringContainsString('updated:', $frontmatter);
         $this->assertStringNotContainsString('created:', $frontmatter);
     }
@@ -450,15 +417,23 @@ Content');
     public function testReindexAllIndexesAllFiles(): void
     {
         mkdir($this->tempDir . '/tests', 0755, true);
-        file_put_contents($this->tempDir . '/tests/file1.md', 'Content 1');
-        file_put_contents($this->tempDir . '/tests/file2.md', 'Content 2');
-        file_put_contents($this->tempDir . '/tests/file3.md', 'Content 3');
+        $uuid1 = '550e8400-e29b-41d4-a716-446655440000';
+        $uuid2 = '550e8400-e29b-41d4-a716-446655440001';
+        $uuid3 = '550e8400-e29b-41d4-a716-446655440002';
+        
+        $now = date('Y-m-d');
+        file_put_contents($this->tempDir . '/tests/file1.md', "---\nuuid: {$uuid1}\ntitle: File 1\ntype: test\ncreated: {$now}\n---\nContent 1");
+        file_put_contents($this->tempDir . '/tests/file2.md', "---\nuuid: {$uuid2}\ntitle: File 2\ntype: test\ncreated: {$now}\n---\nContent 2");
+        file_put_contents($this->tempDir . '/tests/file3.md', "---\nuuid: {$uuid3}\ntitle: File 3\ntype: test\ncreated: {$now}\n---\nContent 3");
         
         $this->compilerService->expects($this->exactly(3))
             ->method('compile')
             ->willReturnCallback(fn($content, $filename) => [
                 'name' => $filename,
-                'slug' => str_replace('.md', '', $filename)
+                'slug' => str_replace('.md', '', $filename),
+                'metadata' => [
+                    'uuid' => $filename === 'file1.md' ? $uuid1 : ($filename === 'file2.md' ? $uuid2 : $uuid3)
+                ]
             ]);
         
         $this->vectorService->expects($this->exactly(3))
@@ -479,24 +454,37 @@ Content');
     public function testReindexAllWithOnlyNewSkipsExisting(): void
     {
         mkdir($this->tempDir . '/tests', 0755, true);
-        file_put_contents($this->tempDir . '/tests/existing.md', 'Existing content');
-        file_put_contents($this->tempDir . '/tests/new.md', 'New content');
+        $uuidExisting = '550e8400-e29b-41d4-a716-446655440000';
+        $uuidNew = '550e8400-e29b-41d4-a716-446655440001';
+        
+        $now = date('Y-m-d');
+        $existingContent = "---\nuuid: {$uuidExisting}\ntitle: Existing\ntype: test\ncreated: {$now}\n---\nExisting content";
+        $newContent = "---\nuuid: {$uuidNew}\ntitle: New\ntype: test\ncreated: {$now}\n---\nNew content";
+        
+        file_put_contents($this->tempDir . '/tests/existing.md', $existingContent);
+        file_put_contents($this->tempDir . '/tests/new.md', $newContent);
         
         $this->vectorService->expects($this->exactly(2))
-            ->method('exists')
+            ->method('existsByUuid')
             ->willReturnMap([
-                ['existing', true],
-                ['new', false]
+                [$uuidExisting, true],
+                [$uuidNew, false]
             ]);
         
-        $this->compilerService->expects($this->once())
+        $this->compilerService->expects($this->exactly(2))
             ->method('compile')
-            ->with('New content', 'new.md')
-            ->willReturn(['name' => 'new', 'slug' => 'new']);
+            ->willReturnCallback(function($content, $filename) use ($uuidExisting, $uuidNew) {
+                $uuid = $filename === 'existing.md' ? $uuidExisting : $uuidNew;
+                return [
+                    'name' => str_replace('.md', '', $filename),
+                    'slug' => str_replace('.md', '', $filename),
+                    'metadata' => ['uuid' => $uuid]
+                ];
+            });
         
         $this->vectorService->expects($this->once())
             ->method('index')
-            ->with('new', $this->anything());
+            ->with('new', $uuidNew, $this->anything());
         
         $count = $this->service->reindexAll(true);
         
@@ -506,16 +494,23 @@ Content');
     public function testReindexAllWithOnlyNewIndexesAllWhenNoneExist(): void
     {
         mkdir($this->tempDir . '/tests', 0755, true);
-        file_put_contents($this->tempDir . '/tests/new1.md', 'Content 1');
-        file_put_contents($this->tempDir . '/tests/new2.md', 'Content 2');
+        $uuid1 = '550e8400-e29b-41d4-a716-446655440000';
+        $uuid2 = '550e8400-e29b-41d4-a716-446655440001';
         
-        $this->vectorService->method('exists')->willReturn(false);
+        $now = date('Y-m-d');
+        file_put_contents($this->tempDir . '/tests/new1.md', "---\nuuid: {$uuid1}\ntitle: New 1\ntype: test\ncreated: {$now}\n---\nContent 1");
+        file_put_contents($this->tempDir . '/tests/new2.md', "---\nuuid: {$uuid2}\ntitle: New 2\ntype: test\ncreated: {$now}\n---\nContent 2");
+        
+        $this->vectorService->method('existsByUuid')->willReturn(false);
         
         $this->compilerService->expects($this->exactly(2))
             ->method('compile')
             ->willReturnCallback(fn($content, $filename) => [
                 'name' => $filename,
-                'slug' => str_replace('.md', '', $filename)
+                'slug' => str_replace('.md', '', $filename),
+                'metadata' => [
+                    'uuid' => $filename === 'new1.md' ? $uuid1 : $uuid2
+                ]
             ]);
         
         $this->vectorService->expects($this->exactly(2))

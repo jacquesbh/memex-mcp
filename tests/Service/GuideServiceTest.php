@@ -8,6 +8,7 @@ use Memex\Service\GuideService;
 use Memex\Service\PatternCompilerService;
 use Memex\Service\VectorService;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Uid\Uuid;
 use RuntimeException;
 
 final class GuideServiceTest extends TestCase
@@ -34,9 +35,11 @@ final class GuideServiceTest extends TestCase
 
     public function testWriteCreatesGuideFile(): void
     {
-        $slug = $this->service->write('Test Guide', 'Content here', ['tag1', 'tag2']);
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $result = $this->service->write($uuid, 'Test Guide', 'Content here', ['tag1', 'tag2']);
         
-        $this->assertSame('test-guide', $slug);
+        $this->assertSame($uuid, $result['uuid']);
+        $this->assertSame('test-guide', $result['slug']);
         $this->assertFileExists($this->testKbPath . '/guides/test-guide.md');
     }
 
@@ -45,7 +48,8 @@ final class GuideServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Title contains invalid characters');
         
-        $this->service->write('', 'Content');
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, '', 'Content');
     }
 
     public function testWriteThrowsOnInvalidTitleCharacters(): void
@@ -53,7 +57,8 @@ final class GuideServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Title contains invalid characters');
         
-        $this->service->write('Test@Guide#Invalid', 'Content');
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, 'Test@Guide#Invalid', 'Content');
     }
 
     public function testWriteThrowsOnTooLongTitle(): void
@@ -61,7 +66,8 @@ final class GuideServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Title too long');
         
-        $this->service->write(str_repeat('a', 201), 'Content');
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, str_repeat('a', 201), 'Content');
     }
 
     public function testWriteThrowsOnEmptyContent(): void
@@ -69,7 +75,8 @@ final class GuideServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Content cannot be empty');
         
-        $this->service->write('Title', '');
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, 'Title', '');
     }
 
     public function testWriteThrowsOnTooLargeContent(): void
@@ -77,25 +84,50 @@ final class GuideServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Content too large');
         
-        $this->service->write('Title', str_repeat('a', 1048577));
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, 'Title', str_repeat('a', 1048577));
     }
 
     public function testWriteThrowsOnExistingFileWithoutOverwrite(): void
     {
-        $this->service->write('Test Guide', 'Content');
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->exactly(2))
+            ->method('getByUuid')
+            ->willReturnOnConsecutiveCalls(
+                null,
+                ['uuid' => 'test-uuid', 'slug' => 'test-guide', 'content' => 'Content']
+            );
+        
+        $compiler = new PatternCompilerService();
+        $service = new GuideService($this->testKbPath, $compiler, $vectorService);
+        
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $service->write($uuid, 'Test Guide', 'Content');
         
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('already exists');
         
-        $this->service->write('Test Guide', 'New Content');
+        $service->write($uuid, 'Test Guide', 'New Content');
     }
 
     public function testWriteOverwritesExistingFileWithFlag(): void
     {
-        $this->service->write('Test Guide', 'Content');
-        $slug = $this->service->write('Test Guide', 'New Content', [], true);
+        $vectorService = $this->createMock(VectorService::class);
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $vectorService->expects($this->exactly(2))
+            ->method('getByUuid')
+            ->willReturnOnConsecutiveCalls(
+                null,
+                ['uuid' => $uuid, 'slug' => 'test-guide', 'content' => 'Content']
+            );
         
-        $this->assertSame('test-guide', $slug);
+        $compiler = new PatternCompilerService();
+        $service = new GuideService($this->testKbPath, $compiler, $vectorService);
+        
+        $service->write($uuid, 'Test Guide', 'Content');
+        $result = $service->write($uuid, 'Test Guide', 'New Content', [], true);
+        
+        $this->assertSame('test-guide', $result['slug']);
         $content = file_get_contents($this->testKbPath . '/guides/test-guide.md');
         $this->assertStringContainsString('New Content', $content);
         $this->assertStringContainsString('updated:', $content);
@@ -103,7 +135,8 @@ final class GuideServiceTest extends TestCase
 
     public function testDeleteRemovesGuideFile(): void
     {
-        $this->service->write('Test Guide', 'Content');
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $this->service->write($uuid, 'Test Guide', 'Content');
         
         $result = $this->service->delete('test-guide');
         
@@ -131,14 +164,16 @@ final class GuideServiceTest extends TestCase
 
     public function testSlugifyConvertsToLowerCase(): void
     {
-        $slug = $this->service->write('TEST GUIDE', 'Content');
-        $this->assertSame('test-guide', $slug);
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $result = $this->service->write($uuid, 'TEST GUIDE', 'Content');
+        $this->assertSame('test-guide', $result['slug']);
     }
 
     public function testSlugifyRemovesSpecialCharacters(): void
     {
-        $slug = $this->service->write('Test Guide 123', 'Content');
-        $this->assertSame('test-guide-123', $slug);
+        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
+        $result = $this->service->write($uuid, 'Test Guide 123', 'Content');
+        $this->assertSame('test-guide-123', $result['slug']);
     }
 
     private function recursiveRemoveDirectory(string $dir): void

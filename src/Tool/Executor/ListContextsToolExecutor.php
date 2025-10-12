@@ -29,8 +29,8 @@ class ListContextsToolExecutor implements ToolExecutorInterface, IdentifierInter
             return new ToolCallResult(
                 json_encode([
                     'success' => true,
-                    'how_to_display' => 'Display the list of contexts in a readable format, including (important) their names and slugs.',
-                    'what_to_do_next' => 'Use the "get_context" tool to retrieve a specific context by its slug or name.',
+                    'how_to_display' => 'Display the list of contexts in a readable format, including (important) their UUIDs and names.',
+                    'what_to_do_next' => 'Use the "get_context" tool to retrieve a specific context by its UUID.',
                     'total' => count($contexts),
                     'contexts' => $contexts,
                 ], JSON_THROW_ON_ERROR)

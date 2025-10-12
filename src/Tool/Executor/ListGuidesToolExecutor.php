@@ -29,8 +29,8 @@ class ListGuidesToolExecutor implements ToolExecutorInterface, IdentifierInterfa
             return new ToolCallResult(
                 json_encode([
                     'success' => true,
-                    'how_to_display' => 'Display the list of guides in a readable format, including (important) their names and slugs.',
-                    'what_to_do_next' => 'Use the "get_guide" tool to retrieve a specific guide by its slug or name.',
+                    'how_to_display' => 'Display the list of guides in a readable format, including (important) their UUIDs and names.',
+                    'what_to_do_next' => 'Use the "get_guide" tool to retrieve a specific guide by its UUID.',
                     'total' => count($guides),
                     'guides' => $guides,
                 ], JSON_THROW_ON_ERROR)

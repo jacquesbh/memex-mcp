@@ -18,20 +18,22 @@ class WriteGuideTool
         description: 'Write a new guide to the knowledge base or update an existing one'
     )]
     public function write(
+        string $uuid,
         string $title,
         string $content,
         array $tags = [],
         bool $overwrite = false
     ): array {
         try {
-            $slug = $this->guideService->write($title, $content, $tags, $overwrite);
+            $result = $this->guideService->write($uuid, $title, $content, $tags, $overwrite);
             
             return [
                 'success' => true,
                 'action' => $overwrite ? 'updated' : 'created',
+                'uuid' => $result['uuid'],
                 'title' => $title,
-                'slug' => $slug,
-                'file' => "knowledge-base/guides/{$slug}.md",
+                'slug' => $result['slug'],
+                'file' => "knowledge-base/guides/{$result['slug']}.md",
                 'tags' => $tags,
             ];
         } catch (\Exception $e) {

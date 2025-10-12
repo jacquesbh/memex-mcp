@@ -24,11 +24,12 @@ final class WriteGuideToolExecutorTest extends TestCase
         $service = $this->createMock(GuideService::class);
         $service->expects($this->once())
             ->method('write')
-            ->with('Test Guide', 'Content', ['tag1'], false)
-            ->willReturn('test-guide');
+            ->with('00000000-0000-4000-8000-000000000001', 'Test Guide', 'Content', ['tag1'], false)
+            ->willReturn(['uuid' => '00000000-0000-4000-8000-000000000001', 'slug' => 'test-guide', 'title' => 'Test Guide']);
         
         $executor = new WriteGuideToolExecutor($service);
         $toolCall = new ToolCall('test-id', 'write_guide', [
+            'uuid' => '00000000-0000-4000-8000-000000000001',
             'title' => 'Test Guide',
             'content' => 'Content',
             'tags' => ['tag1'],
@@ -39,6 +40,7 @@ final class WriteGuideToolExecutorTest extends TestCase
         
         $data = json_decode($result->result, true);
         $this->assertTrue($data['success']);
+        $this->assertSame('00000000-0000-4000-8000-000000000001', $data['uuid']);
         $this->assertSame('test-guide', $data['slug']);
         $this->assertSame('created', $data['action']);
     }
@@ -48,11 +50,12 @@ final class WriteGuideToolExecutorTest extends TestCase
         $service = $this->createMock(GuideService::class);
         $service->expects($this->once())
             ->method('write')
-            ->with('Test Guide', 'Content', [], true)
-            ->willReturn('test-guide');
+            ->with('00000000-0000-4000-8000-000000000001', 'Test Guide', 'Content', [], true)
+            ->willReturn(['uuid' => '00000000-0000-4000-8000-000000000001', 'slug' => 'test-guide', 'title' => 'Test Guide']);
         
         $executor = new WriteGuideToolExecutor($service);
         $toolCall = new ToolCall('test-id', 'write_guide', [
+            'uuid' => '00000000-0000-4000-8000-000000000001',
             'title' => 'Test Guide',
             'content' => 'Content',
             'overwrite' => true,
@@ -73,6 +76,7 @@ final class WriteGuideToolExecutorTest extends TestCase
         
         $executor = new WriteGuideToolExecutor($service);
         $toolCall = new ToolCall('test-id', 'write_guide', [
+            'uuid' => '00000000-0000-4000-8000-000000000001',
             'title' => 'Test',
             'content' => 'Content',
         ]);

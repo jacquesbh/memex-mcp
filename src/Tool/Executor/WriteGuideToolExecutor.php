@@ -24,21 +24,24 @@ class WriteGuideToolExecutor implements ToolExecutorInterface, IdentifierInterfa
     public function call(ToolCall $input): ToolCallResult
     {
         try {
+            $uuid = $input->arguments['uuid'];
             $title = $input->arguments['title'];
             $content = $input->arguments['content'];
             $tags = $input->arguments['tags'] ?? [];
             $overwrite = $input->arguments['overwrite'] ?? false;
             
-            $slug = $this->guideService->write($title, $content, $tags, $overwrite);
+            $result = $this->guideService->write($uuid, $title, $content, $tags, $overwrite);
             
             return new ToolCallResult(
                 json_encode([
                     'success' => true,
                     'action' => $overwrite ? 'updated' : 'created',
-                    'title' => $title,
-                    'slug' => $slug,
-                    'file' => "guides/{$slug}.md",
+                    'uuid' => $result['uuid'],
+                    'slug' => $result['slug'],
+                    'title' => $result['title'],
+                    'file' => "guides/{$result['slug']}.md",
                     'tags' => $tags,
+                    'message' => "Guide created/updated. Use UUID '{$result['uuid']}' to retrieve it.",
                 ], JSON_THROW_ON_ERROR)
             );
         } catch (\Exception $e) {

@@ -44,6 +44,7 @@ class VectorService
                 id TEXT PRIMARY KEY,
                 type TEXT NOT NULL,
                 slug TEXT NOT NULL,
+                uuid TEXT,
                 name TEXT NOT NULL,
                 title TEXT,
                 tags TEXT,
@@ -58,17 +59,18 @@ class VectorService
             
             CREATE INDEX IF NOT EXISTS idx_type ON embeddings(type);
             CREATE INDEX IF NOT EXISTS idx_slug ON embeddings(slug);
+            CREATE INDEX IF NOT EXISTS idx_uuid ON embeddings(uuid);
             CREATE INDEX IF NOT EXISTS idx_parent_id ON embeddings(parent_id);
         ');
     }
 
-    public function index(string $slug, array $compiled): void
+    public function index(string $slug, string $uuid, array $compiled): void
     {
         $now = date('c');
         $stmt = $this->db->prepare('
             INSERT OR REPLACE INTO embeddings 
-            (id, type, slug, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
 
         $contentForEmbedding = mb_strlen($compiled['content']) <= 4000
@@ -81,6 +83,7 @@ class VectorService
             $slug,
             $compiled['metadata']['type'] ?? 'guide',
             $slug,
+            $uuid,
             $compiled['name'],
             $compiled['metadata']['title'] ?? $compiled['name'],
             json_encode($compiled['metadata']['tags'] ?? []),
@@ -121,6 +124,7 @@ class VectorService
                     $isChunk ? "{$sectionId}_chunk_{$chunkIndex}" : $sectionId,
                     $isChunk ? 'chunk' : 'section',
                     $slug,
+                    null,
                     $compiled['name'],
                     $section['title'],
                     json_encode([]),
@@ -236,6 +240,7 @@ class VectorService
                 'id' => $row['id'],
                 'type' => $row['type'],
                 'slug' => $row['slug'],
+                'uuid' => $row['uuid'],
                 'name' => $row['name'],
                 'title' => $row['title'],
                 'tags' => json_decode($row['tags'], true),
@@ -245,6 +250,40 @@ class VectorService
         }
         
         return $results;
+    }
+
+    public function getByUuid(string $uuid): ?array
+    {
+        $stmt = $this->db->prepare('
+            SELECT * FROM embeddings 
+            WHERE uuid = ? AND (type = "guide" OR type = "context")
+            LIMIT 1
+        ');
+        $stmt->execute([$uuid]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$row) {
+            return null;
+        }
+        
+        return [
+            'id' => $row['id'],
+            'type' => $row['type'],
+            'slug' => $row['slug'],
+            'uuid' => $row['uuid'],
+            'name' => $row['name'],
+            'title' => $row['title'],
+            'tags' => json_decode($row['tags'], true),
+            'content' => $row['content'],
+            'metadata' => json_decode($row['metadata'], true),
+        ];
+    }
+
+    public function existsByUuid(string $uuid): bool
+    {
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM embeddings WHERE uuid = ?');
+        $stmt->execute([$uuid]);
+        return $stmt->fetchColumn() > 0;
     }
 
     public function delete(string $slug): void

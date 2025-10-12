@@ -18,20 +18,22 @@ class WriteContextTool
         description: 'Write a new context (prompt/persona/conventions) to the knowledge base or update an existing one'
     )]
     public function write(
+        string $uuid,
         string $name,
         string $content,
         array $tags = [],
         bool $overwrite = false
     ): array {
         try {
-            $slug = $this->contextService->write($name, $content, $tags, $overwrite);
+            $result = $this->contextService->write($uuid, $name, $content, $tags, $overwrite);
             
             return [
                 'success' => true,
                 'action' => $overwrite ? 'updated' : 'created',
+                'uuid' => $result['uuid'],
                 'name' => $name,
-                'slug' => $slug,
-                'file' => "knowledge-base/contexts/{$slug}.md",
+                'slug' => $result['slug'],
+                'file' => "knowledge-base/contexts/{$result['slug']}.md",
                 'tags' => $tags,
             ];
         } catch (\Exception $e) {

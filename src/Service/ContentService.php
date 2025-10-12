@@ -20,24 +20,14 @@ abstract class ContentService
     
     abstract protected function getContentDir(): string;
 
-    public function get(string $query): array
+    public function get(string $uuid): array
     {
-        $results = $this->vectorService->search($query, 1, 0.6);
+        $this->validateUuid($uuid);
         
-        if (empty($results)) {
-            throw new RuntimeException("{$this->getContentType()} not found: {$query}");
-        }
+        $result = $this->vectorService->getByUuid($uuid);
         
-        $result = $results[0];
-        
-        if ($result['type'] === 'section') {
-            $parentSlug = $result['metadata']['parent_slug'] ?? $result['slug'];
-            $parentResults = $this->vectorService->listAll($this->getContentType());
-            foreach ($parentResults as $item) {
-                if ($item['slug'] === $parentSlug) {
-                    return $item['metadata'];
-                }
-            }
+        if (!$result) {
+            throw new RuntimeException("{$this->getContentType()} not found with UUID: {$uuid}");
         }
         
         return $result['metadata'];
@@ -50,6 +40,7 @@ abstract class ContentService
         return array_map(function($item) {
             $metadata = $item['metadata'] ?? [];
             return [
+                'uuid' => $item['uuid'],
                 'slug' => $item['slug'],
                 'name' => $item['name'],
                 'title' => $item['title'],
@@ -65,21 +56,28 @@ abstract class ContentService
         return $this->vectorService->search($query, $limit);
     }
 
-    public function write(string $title, string $content, array $tags = [], bool $overwrite = false): string
+    public function write(string $uuid, string $title, string $content, array $tags = [], bool $overwrite = false): array
     {
+        $this->validateUuid($uuid);
         $this->validateTitle($title);
         $this->validateContent($content);
         
         $slug = $this->slugify($title);
         $this->validateSlug($slug);
         
-        $filePath = $this->getFullContentDir() . '/' . $slug . '.md';
+        $existing = $this->vectorService->getByUuid($uuid);
         
-        if (file_exists($filePath) && !$overwrite) {
-            throw new RuntimeException("{$this->getContentType()} already exists: {$slug}. Use overwrite option to replace.");
+        if ($existing && !$overwrite) {
+            throw new RuntimeException("Content with UUID {$uuid} already exists. Use overwrite=true to replace.");
         }
         
-        $frontmatter = $this->buildFrontmatter($title, $tags, file_exists($filePath));
+        if ($existing) {
+            $slug = $existing['slug'];
+        }
+        
+        $filePath = $this->getFullContentDir() . '/' . $slug . '.md';
+        
+        $frontmatter = $this->buildFrontmatter($uuid, $title, $tags, $existing !== null);
         $fullContent = $frontmatter . "\n" . $content;
         
         if (!is_dir($this->getFullContentDir())) {
@@ -89,9 +87,13 @@ abstract class ContentService
         file_put_contents($filePath, $fullContent);
         
         $compiled = $this->compiler->compile($fullContent, $slug . '.md');
-        $this->vectorService->index($slug, $compiled);
+        $this->vectorService->index($slug, $uuid, $compiled);
         
-        return $slug;
+        return [
+            'uuid' => $uuid,
+            'slug' => $slug,
+            'title' => $title,
+        ];
     }
 
     public function delete(string $slug): array
@@ -139,15 +141,26 @@ abstract class ContentService
         
         $count = 0;
         foreach ($finder as $file) {
+            $content = $file->getContents();
+            $compiled = $this->compiler->compile($content, $file->getFilename());
+            
+            if (!isset($compiled['metadata']['uuid'])) {
+                throw new RuntimeException(
+                    "File {$file->getFilename()} missing 'uuid' in frontmatter. " .
+                    "All files must have a UUID before indexing."
+                );
+            }
+            
+            $uuid = $compiled['metadata']['uuid'];
             $slug = $this->extractSlug($file->getFilename());
             
-            if ($onlyNew && $this->vectorService->exists($slug)) {
+            $this->validateUuid($uuid);
+            
+            if ($onlyNew && $this->vectorService->existsByUuid($uuid)) {
                 continue;
             }
             
-            $content = $file->getContents();
-            $compiled = $this->compiler->compile($content, $file->getFilename());
-            $this->vectorService->index($slug, $compiled);
+            $this->vectorService->index($slug, $uuid, $compiled);
             $count++;
         }
         
@@ -203,16 +216,17 @@ abstract class ContentService
         }
     }
 
-    protected function buildFrontmatter(string $title, array $tags, bool $isUpdate): string
+    protected function buildFrontmatter(string $uuid, string $title, array $tags, bool $isUpdate): string
     {
         $now = date('Y-m-d');
         
         $frontmatter = "---\n";
-        $frontmatter .= "title: \"" . addslashes($title) . "\"\n";
+        $frontmatter .= "uuid: {$uuid}\n";
+        $frontmatter .= "title: " . addslashes($title) . "\n";
         $frontmatter .= "type: {$this->getContentType()}\n";
         
         if (!empty($tags)) {
-            $frontmatter .= "tags: [" . implode(', ', array_map(fn($t) => '"' . addslashes($t) . '"', $tags)) . "]\n";
+            $frontmatter .= "tags: [" . implode(', ', array_map(fn($t) => addslashes($t), $tags)) . "]\n";
         }
         
         if (!$isUpdate) {
@@ -229,5 +243,12 @@ abstract class ContentService
     protected function extractSlug(string $filename): string
     {
         return str_replace('.md', '', $filename);
+    }
+
+    protected function validateUuid(string $uuid): void
+    {
+        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $uuid)) {
+            throw new InvalidArgumentException('Invalid UUID v4 format');
+        }
     }
 }

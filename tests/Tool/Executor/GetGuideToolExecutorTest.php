@@ -23,7 +23,7 @@ final class GetGuideToolExecutorTest extends TestCase
     {
         $guideData = [
             'name' => 'Test Guide',
-            'metadata' => ['title' => 'Test Guide', 'tags' => ['php']],
+            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001', 'title' => 'Test Guide', 'tags' => ['php']],
             'content' => 'Guide content',
             'sections' => [['title' => 'Section 1', 'content' => 'Content 1']],
         ];
@@ -31,16 +31,17 @@ final class GetGuideToolExecutorTest extends TestCase
         $service = $this->createMock(GuideService::class);
         $service->expects($this->once())
             ->method('get')
-            ->with('test query')
+            ->with('00000000-0000-4000-8000-000000000001')
             ->willReturn($guideData);
         
         $executor = new GetGuideToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'get_guide', ['query' => 'test query']);
+        $toolCall = new ToolCall('test-id', 'get_guide', ['uuid' => '00000000-0000-4000-8000-000000000001']);
         
         $result = $executor->call($toolCall);
         
         $data = json_decode($result->result, true);
         $this->assertTrue($data['success']);
+        $this->assertSame('00000000-0000-4000-8000-000000000001', $data['uuid']);
         $this->assertSame('Test Guide', $data['name']);
         $this->assertArrayHasKey('metadata', $data);
         $this->assertArrayHasKey('sections', $data);
@@ -53,7 +54,7 @@ final class GetGuideToolExecutorTest extends TestCase
             ->willThrowException(new \RuntimeException('Guide not found'));
         
         $executor = new GetGuideToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'get_guide', ['query' => 'nonexistent']);
+        $toolCall = new ToolCall('test-id', 'get_guide', ['uuid' => '00000000-0000-4000-8000-000000000001']);
         
         $result = $executor->call($toolCall);
         

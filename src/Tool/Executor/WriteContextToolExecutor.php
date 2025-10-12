@@ -24,21 +24,24 @@ class WriteContextToolExecutor implements ToolExecutorInterface, IdentifierInter
     public function call(ToolCall $input): ToolCallResult
     {
         try {
+            $uuid = $input->arguments['uuid'];
             $name = $input->arguments['name'];
             $content = $input->arguments['content'];
             $tags = $input->arguments['tags'] ?? [];
             $overwrite = $input->arguments['overwrite'] ?? false;
             
-            $slug = $this->contextService->write($name, $content, $tags, $overwrite);
+            $result = $this->contextService->write($uuid, $name, $content, $tags, $overwrite);
             
             return new ToolCallResult(
                 json_encode([
                     'success' => true,
                     'action' => $overwrite ? 'updated' : 'created',
-                    'name' => $name,
-                    'slug' => $slug,
-                    'file' => "contexts/{$slug}.md",
+                    'uuid' => $result['uuid'],
+                    'slug' => $result['slug'],
+                    'name' => $result['title'],
+                    'file' => "contexts/{$result['slug']}.md",
                     'tags' => $tags,
+                    'message' => "Context created/updated. Use UUID '{$result['uuid']}' to retrieve it.",
                 ], JSON_THROW_ON_ERROR)
             );
         } catch (\Exception $e) {

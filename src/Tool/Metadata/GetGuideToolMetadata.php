@@ -15,7 +15,7 @@ class GetGuideToolMetadata extends AbstractToolMetadata
 
     public function getDescription(): ?string
     {
-        return 'Retrieve a technical guide from the knowledge base using search query';
+        return 'Retrieve a technical guide from the knowledge base by UUID';
     }
 
     public function getInputSchema(): array
@@ -23,12 +23,12 @@ class GetGuideToolMetadata extends AbstractToolMetadata
         return [
             'type' => 'object',
             'properties' => [
-                'query' => [
+                'uuid' => [
                     'type' => 'string',
-                    'description' => 'Search query to find the guide',
+                    'description' => 'UUID of the guide (use list_guides or search_knowledge_base to discover UUIDs)',
                 ],
             ],
-            'required' => ['query'],
+            'required' => ['uuid'],
         ];
     }
 }
