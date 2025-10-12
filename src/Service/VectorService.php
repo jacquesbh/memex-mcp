@@ -15,13 +15,13 @@ class VectorService
 
     public function __construct(string $knowledgeBasePath)
     {
-        $varDir = $knowledgeBasePath . '/var';
+        $vectorsDir = $knowledgeBasePath . '/.vectors';
         
-        if (!is_dir($varDir)) {
-            mkdir($varDir, 0755, true);
+        if (!is_dir($vectorsDir)) {
+            mkdir($vectorsDir, 0755, true);
         }
         
-        $dbPath = $varDir . '/embeddings.db';
+        $dbPath = $vectorsDir . '/embeddings.db';
         $this->db = new PDO("sqlite:{$dbPath}");
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->initialize();

@@ -48,12 +48,12 @@ final class VectorServiceTest extends TestCase
 
     public function testConstructorCreatesVarDirectory(): void
     {
-        $this->assertDirectoryExists($this->tempDir . '/var');
+        $this->assertDirectoryExists($this->tempDir . '/.vectors');
     }
 
     public function testConstructorCreatesDatabaseFile(): void
     {
-        $this->assertFileExists($this->tempDir . '/var/embeddings.db');
+        $this->assertFileExists($this->tempDir . '/.vectors/embeddings.db');
     }
 
     public function testIndexStoresDocument(): void

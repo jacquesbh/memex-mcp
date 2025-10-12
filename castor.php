@@ -72,6 +72,22 @@ function init(
         }
     }
 
+    $gitignorePath = "{$kbPath}/.gitignore";
+    $gitignoreContent = ".vectors/\n";
+
+    if (!file_exists($gitignorePath)) {
+        file_put_contents($gitignorePath, $gitignoreContent);
+        io()->success("Created {$gitignorePath}");
+    } else {
+        $existingContent = file_get_contents($gitignorePath);
+        if (!str_contains($existingContent, '.vectors/')) {
+            file_put_contents($gitignorePath, $existingContent . $gitignoreContent);
+            io()->success("Updated {$gitignorePath}");
+        } else {
+            io()->note("{$gitignorePath} already contains .vectors/");
+        }
+    }
+
     io()->success("Knowledge base initialized at: {$kbPath}");
 }
 
