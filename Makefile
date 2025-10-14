@@ -1,4 +1,4 @@
-.PHONY: help install clean build local.install test test-mcp coverage
+.PHONY: help install clean build local.install test test-mcp test-embed coverage
 
 help: ## Display this help
 	@grep -E '^[a-zA-Z._-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -31,6 +31,19 @@ test: vendor ## Run PHPUnit unit tests
 
 test-mcp: ## Run MCP Direct JSON-RPC integration tests
 	@bash bin/test-mcp.sh
+
+test-embed: vendor ## Test embed command with --force flag
+	@echo "Testing embed --force functionality..."
+	@TEST_KB=$$(mktemp -d); \
+	mkdir -p $$TEST_KB/guides $$TEST_KB/contexts; \
+	echo "---\nuuid: \"550e8400-e29b-41d4-a716-446655440000\"\ntitle: \"Test Guide\"\ntype: guide\ntags: [\"test\"]\n---\n\n# Test Guide\n\nTest content" > $$TEST_KB/guides/test.md; \
+	vendor/bin/castor embed --kb=$$TEST_KB 2>&1 | grep -q "Indexed" && echo "✓ Initial embed works" || (echo "✗ Initial embed failed"; exit 1); \
+	test -f $$TEST_KB/.vectors/embeddings.db && echo "✓ Database created" || (echo "✗ Database not created"; exit 1); \
+	vendor/bin/castor embed --kb=$$TEST_KB --force 2>&1 | grep -q "Deleting existing vector database" && echo "✓ Force flag deletes database" || (echo "✗ Force flag didn't delete database"; exit 1); \
+	test -f $$TEST_KB/.vectors/embeddings.db && echo "✓ Database recreated" || (echo "✗ Database not recreated"; exit 1); \
+	vendor/bin/castor embed --kb=$$TEST_KB --force 2>&1 | grep -q "Successfully indexed" && echo "✓ Force reindex works" || (echo "✗ Force reindex failed"; exit 1); \
+	rm -rf $$TEST_KB; \
+	echo "\n✅ All embed --force tests passed!"
 
 coverage: vendor ## Generate HTML coverage report in /tmp/coverage
 	XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-html=/tmp/coverage

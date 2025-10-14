@@ -247,6 +247,11 @@ castor embed --only-new
 # or
 ./memex embed --only-new
 
+# Force rebuild (deletes .vectors and re-indexes everything)
+castor embed --force
+# or
+./memex embed --force
+
 # View stats
 castor stats
 # or
@@ -258,6 +263,12 @@ castor stats
 - After manually adding guides/contexts to the filesystem
 - After updating existing guides manually (without `--only-new`)
 - To rebuild the entire vector database
+
+**When to use `--force`:**
+- Database schema errors (e.g., `no such column: uuid`)
+- Corrupted vector database
+- After major MEMEX updates that change the schema
+- Fresh start needed
 
 **Note:** Writing via MCP tools (`write_guide`, `write_context`) automatically indexes content.
 
@@ -310,6 +321,19 @@ composer dump-autoload
 **Solution**: 
 1. Verify `knowledge-base/guides/` or `knowledge-base/contexts/` contains `.md` files
 2. Index the files: `castor embed` or `./memex embed`
+
+### Database Schema Errors
+
+**Error**: `SQLSTATE[HY000]: General error: 1 no such column: uuid`
+
+**Solution**: Force rebuild the vector database:
+```bash
+./memex embed --force
+# or
+castor embed --force
+```
+
+This deletes `.vectors/` and rebuilds with the current schema.
 
 ### Ollama Connection Errors
 

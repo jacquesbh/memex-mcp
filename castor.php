@@ -126,7 +126,9 @@ function embed(
     #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
     ?string $knowledgeBase = null,
     #[AsOption(name: 'only-new', description: 'Only index files not already in the database')]
-    bool $onlyNew = false
+    bool $onlyNew = false,
+    #[AsOption(name: 'force', description: 'Force rebuild by deleting existing vector database')]
+    bool $force = false
 ): void
 {
     $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
@@ -134,6 +136,26 @@ function embed(
     if (!is_dir($kbPath)) {
         io()->error("Knowledge base path does not exist: {$kbPath}");
         exit(1);
+    }
+
+    if ($force) {
+        $vectorsPath = "{$kbPath}/.vectors";
+        if (is_dir($vectorsPath)) {
+            io()->warning("Deleting existing vector database at: {$vectorsPath}");
+            $deleteRecursive = function(string $dir) use (&$deleteRecursive): void {
+                if (!is_dir($dir)) {
+                    return;
+                }
+                $items = array_diff(scandir($dir) ?: [], ['.', '..']);
+                foreach ($items as $item) {
+                    $path = "{$dir}/{$item}";
+                    is_dir($path) ? $deleteRecursive($path) : unlink($path);
+                }
+                rmdir($dir);
+            };
+            $deleteRecursive($vectorsPath);
+            io()->success("Vector database deleted");
+        }
     }
 
     $mode = $onlyNew ? 'new files' : 'all files';

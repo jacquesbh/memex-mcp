@@ -6,7 +6,7 @@
 
 **Dev:** `castor server`, `castor embed`, `castor init`, `castor stats`
 **Prod:** `./memex server` (replace `castor` with `./memex`)
-**Indexing:** `castor embed` (all files), `castor embed --only-new` (new files only)
+**Indexing:** `castor embed` (all files), `castor embed --only-new` (new files only), `castor embed --force` (rebuild database)
 **Custom KB:** Add `--kb=/path` to any command
 **Testing:** `make test` (PHPUnit), `make test-mcp` (MCP integration)
 **Build:** `make build` (creates binary)
