@@ -11,14 +11,7 @@ use Memex\Helper\ApplicationHelper;
 use Memex\Helper\ServerHelper;
 use Memex\Service\ContextService;
 use Memex\Service\GuideService;
-use Memex\Service\PatternCompilerService;
-use Memex\Service\VectorService;
-use Memex\Tool\MemexToolChain;
-use Symfony\AI\McpSdk\Server;
-use Symfony\AI\McpSdk\Server\Transport\Stdio\SymfonyConsoleTransport;
-use Symfony\Component\Console\Input\ArgvInput;
-use Symfony\Component\Console\Output\ConsoleOutput;
-use Psr\Log\NullLogger;
+use Mcp\Server\Transport\StdioTransport;
 
 use Humbug\SelfUpdate\Updater;
 
@@ -40,16 +33,13 @@ function server(
     $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
 
     $container = ServerHelper::buildContainer($kbPath);
-    $toolChain = $container->get(MemexToolChain::class)->getChain();
+    $guideService = $container->get(GuideService::class);
+    $contextService = $container->get(ContextService::class);
 
-    $jsonRpcHandler = ServerHelper::createJsonRpcHandler($toolChain, MEMEX_VERSION);
-    $transport = new SymfonyConsoleTransport(
-        new ArgvInput(),
-        new ConsoleOutput()
-    );
+    $server = ServerHelper::createServer($guideService, $contextService, MEMEX_VERSION);
+    $transport = new StdioTransport();
 
-    $server = new Server($jsonRpcHandler, new NullLogger());
-    $server->connect($transport);
+    $server->run($transport);
 }
 
 #[AsTask(description: 'Initialize knowledge base structure')]

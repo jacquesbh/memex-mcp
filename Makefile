@@ -29,7 +29,7 @@ local.install: ## Install memex binary locally
 test: vendor ## Run PHPUnit unit tests
 	vendor/bin/phpunit
 
-test-mcp: ## Run MCP Inspector integration tests
+test-mcp: ## Run MCP Direct JSON-RPC integration tests
 	@bash bin/test-mcp.sh
 
 coverage: vendor ## Generate HTML coverage report in /tmp/coverage

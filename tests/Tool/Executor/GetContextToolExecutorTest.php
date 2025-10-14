@@ -7,25 +7,16 @@ namespace Memex\Tests\Tool\Executor;
 use Memex\Service\ContextService;
 use Memex\Tool\Executor\GetContextToolExecutor;
 use PHPUnit\Framework\TestCase;
-use Symfony\AI\McpSdk\Capability\Tool\ToolCall;
 
 final class GetContextToolExecutorTest extends TestCase
 {
-    public function testGetNameReturnsGetContext(): void
-    {
-        $service = $this->createMock(ContextService::class);
-        $executor = new GetContextToolExecutor($service);
-        
-        $this->assertSame('get_context', $executor->getName());
-    }
-
-    public function testCallReturnsContext(): void
+    public function testExecuteReturnsContext(): void
     {
         $contextData = [
             'name' => 'Test Context',
-            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001', 'name' => 'Test Context', 'tags' => ['expert']],
+            'metadata' => ['uuid' => '00000000-0000-4000-8000-000000000001', 'title' => 'Test Context', 'tags' => ['ai']],
             'content' => 'Context content',
-            'sections' => [],
+            'sections' => [['title' => 'Section 1', 'content' => 'Content 1']],
         ];
         
         $service = $this->createMock(ContextService::class);
@@ -35,31 +26,14 @@ final class GetContextToolExecutorTest extends TestCase
             ->willReturn($contextData);
         
         $executor = new GetContextToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'get_context', ['uuid' => '00000000-0000-4000-8000-000000000001']);
         
-        $result = $executor->call($toolCall);
+        $result = $executor->execute('00000000-0000-4000-8000-000000000001');
         
-        $data = json_decode($result->result, true);
-        $this->assertTrue($data['success']);
-        $this->assertSame('00000000-0000-4000-8000-000000000001', $data['uuid']);
-        $this->assertSame('Test Context', $data['name']);
-        $this->assertArrayHasKey('metadata', $data);
-    }
-
-    public function testCallHandlesNotFound(): void
-    {
-        $service = $this->createMock(ContextService::class);
-        $service->method('get')
-            ->willThrowException(new \RuntimeException('Context not found'));
-        
-        $executor = new GetContextToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'get_context', ['uuid' => '00000000-0000-4000-8000-000000000001']);
-        
-        $result = $executor->call($toolCall);
-        
-        $data = json_decode($result->result, true);
-        $this->assertFalse($data['success']);
-        $this->assertSame('Context not found', $data['error']);
-        $this->assertTrue($result->isError);
+        $this->assertIsArray($result);
+        $this->assertTrue($result['success']);
+        $this->assertSame('00000000-0000-4000-8000-000000000001', $result['uuid']);
+        $this->assertSame('Test Context', $result['name']);
+        $this->assertArrayHasKey('metadata', $result);
+        $this->assertArrayHasKey('sections', $result);
     }
 }

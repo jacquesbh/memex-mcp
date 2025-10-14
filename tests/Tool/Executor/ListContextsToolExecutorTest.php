@@ -7,23 +7,14 @@ namespace Memex\Tests\Tool\Executor;
 use Memex\Service\ContextService;
 use Memex\Tool\Executor\ListContextsToolExecutor;
 use PHPUnit\Framework\TestCase;
-use Symfony\AI\McpSdk\Capability\Tool\ToolCall;
 
 final class ListContextsToolExecutorTest extends TestCase
 {
-    public function testGetNameReturnsListContexts(): void
-    {
-        $service = $this->createMock(ContextService::class);
-        $executor = new ListContextsToolExecutor($service);
-        
-        $this->assertSame('list_contexts', $executor->getName());
-    }
-
-    public function testCallReturnsListOfContexts(): void
+    public function testExecuteReturnsListOfContexts(): void
     {
         $contexts = [
-            ['slug' => 'context-1', 'name' => 'Context 1', 'tags' => ['expert']],
-            ['slug' => 'context-2', 'name' => 'Context 2', 'tags' => ['sylius']],
+            ['slug' => 'context-1', 'title' => 'Context 1', 'tags' => ['php']],
+            ['slug' => 'context-2', 'title' => 'Context 2', 'tags' => ['symfony']],
         ];
         
         $service = $this->createMock(ContextService::class);
@@ -32,48 +23,27 @@ final class ListContextsToolExecutorTest extends TestCase
             ->willReturn($contexts);
         
         $executor = new ListContextsToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'list_contexts', []);
         
-        $result = $executor->call($toolCall);
+        $result = $executor->execute();
         
-        $data = json_decode($result->result, true);
-        $this->assertTrue($data['success']);
-        $this->assertSame(2, $data['total']);
-        $this->assertCount(2, $data['contexts']);
+        $this->assertIsArray($result);
+        $this->assertTrue($result['success']);
+        $this->assertSame(2, $result['total']);
+        $this->assertCount(2, $result['contexts']);
     }
 
-    public function testCallHandlesEmptyList(): void
+    public function testExecuteHandlesEmptyList(): void
     {
         $service = $this->createMock(ContextService::class);
         $service->method('list')->willReturn([]);
         
         $executor = new ListContextsToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'list_contexts', []);
         
-        $result = $executor->call($toolCall);
+        $result = $executor->execute();
         
-        $data = json_decode($result->result, true);
-        $this->assertTrue($data['success']);
-        $this->assertSame(0, $data['total']);
-        $this->assertEmpty($data['contexts']);
-    }
-
-
-
-    public function testCallHandlesRuntimeException(): void
-    {
-        $service = $this->createMock(ContextService::class);
-        $service->method('list')
-            ->willThrowException(new \RuntimeException('Database error'));
-        
-        $executor = new ListContextsToolExecutor($service);
-        $toolCall = new ToolCall('test-id', 'list_contexts', []);
-        
-        $result = $executor->call($toolCall);
-        
-        $this->assertTrue($result->isError);
-        $data = json_decode($result->result, true);
-        $this->assertFalse($data['success']);
-        $this->assertSame('Database error', $data['error']);
+        $this->assertIsArray($result);
+        $this->assertTrue($result['success']);
+        $this->assertSame(0, $result['total']);
+        $this->assertEmpty($result['contexts']);
     }
 }

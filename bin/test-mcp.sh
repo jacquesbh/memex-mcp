@@ -7,7 +7,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-echo -e "${YELLOW}🧪 MEMEX MCP Inspector Integration Tests${NC}\n"
+echo -e "${YELLOW}🧪 MEMEX MCP Direct JSON-RPC Integration Tests${NC}\n"
 
 MEMEX_BIN="./memex"
 if [[ ! -x "$MEMEX_BIN" ]]; then
@@ -29,35 +29,36 @@ pass() {
 fail() {
     echo -e "${RED}✗ FAIL${NC}: $1"
     echo -e "${RED}Output:${NC} $2"
+    rm -rf "$TEST_KB"
     exit 1
 }
 
 call_tool() {
     local tool_name="$1"
     local arguments="$2"
-
-    local cmd=(npx --yes @modelcontextprotocol/inspector 
-               --cli "$MEMEX_BIN" server --kb="$TEST_KB"
-               --method tools/call
-               --tool-name "$tool_name")
-
-    if [[ "$arguments" != "{}" ]]; then
-        while IFS= read -r line; do
-            cmd+=(--tool-arg "$line")
-        done < <(echo "$arguments" | jq -r 'to_entries[] | "\(.key)=\(.value)"')
-    fi
-
-    "${cmd[@]}" 2>/dev/null | \
-        grep -v "^>" | \
-        jq -c '.content[0].text // empty' 2>/dev/null | \
-        sed 's/^"//;s/"$//' | \
-        sed 's/\\n/\n/g' | \
-        sed 's/\\"/"/g'
+    
+    local payload=$(jq -nc \
+        --arg tool_name "$tool_name" \
+        --argjson args "$arguments" \
+        '{
+            jsonrpc: "2.0",
+            id: 2,
+            method: "tools/call",
+            params: {
+                name: $tool_name,
+                arguments: $args
+            }
+        }')
+    
+    (
+        echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
+        echo "$payload"
+    ) | $MEMEX_BIN server --kb="$TEST_KB" 2>&1 | tail -1 | jq -r '.result.content[0].text // empty' 2>/dev/null
 }
 
 echo -e "\n${YELLOW}Test 1: List guides (should be empty)${NC}"
 output=$(call_tool "list_guides" "{}")
-if echo "$output" | grep -q '"total":0'; then
+if echo "$output" | tr -d '\n ' | grep -q '"total":0'; then
     pass "list_guides returns empty"
 else
     fail "list_guides should be empty" "$output"
@@ -73,7 +74,8 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 3: Write guide with UUID${NC}"
-output=$(call_tool "write_guide" "{\"uuid\":\"$GUIDE_UUID\",\"title\":\"Test Guide\",\"content\":\"This is a test guide for CI/CD\"}")
+guide_args=$(jq -n --arg uuid "$GUIDE_UUID" --arg title "Test Guide" --arg content "This is a test guide for CI/CD" '{uuid: $uuid, title: $title, content: $content}')
+output=$(call_tool "write_guide" "$guide_args")
 if echo "$output" | grep -q "test-guide"; then
     pass "write_guide created test-guide"
 else
@@ -89,7 +91,8 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 5: Get guide by UUID${NC}"
-output=$(call_tool "get_guide" "{\"uuid\":\"$GUIDE_UUID\"}")
+get_args=$(jq -n --arg uuid "$GUIDE_UUID" '{uuid: $uuid}')
+output=$(call_tool "get_guide" "$get_args")
 if echo "$output" | grep -q "Test Guide"; then
     pass "get_guide retrieved test-guide"
 else
@@ -106,7 +109,8 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 7: Write context with UUID${NC}"
-output=$(call_tool "write_context" "{\"uuid\":\"$CONTEXT_UUID\",\"name\":\"Test Context\",\"content\":\"This is a test context for CI/CD\"}")
+context_args=$(jq -n --arg uuid "$CONTEXT_UUID" --arg name "Test Context" --arg content "This is a test context for CI/CD" '{uuid: $uuid, name: $name, content: $content}')
+output=$(call_tool "write_context" "$context_args")
 if echo "$output" | grep -q "test-context"; then
     pass "write_context created test-context"
 else
@@ -122,7 +126,8 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 9: Get context by UUID${NC}"
-output=$(call_tool "get_context" "{\"uuid\":\"$CONTEXT_UUID\"}")
+get_ctx_args=$(jq -n --arg uuid "$CONTEXT_UUID" '{uuid: $uuid}')
+output=$(call_tool "get_context" "$get_ctx_args")
 if echo "$output" | grep -q "Test Context"; then
     pass "get_context retrieved test-context"
 else
@@ -139,7 +144,7 @@ fi
 
 echo -e "\n${YELLOW}Test 11: Delete guide${NC}"
 output=$(call_tool "delete_guide" '{"slug":"test-guide"}')
-if echo "$output" | grep -q '"success":true'; then
+if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
     pass "delete_guide removed test-guide"
 else
     fail "delete_guide failed" "$output"
@@ -147,7 +152,7 @@ fi
 
 echo -e "\n${YELLOW}Test 12: Delete context${NC}"
 output=$(call_tool "delete_context" '{"slug":"test-context"}')
-if echo "$output" | grep -q '"success":true'; then
+if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
     pass "delete_context removed test-context"
 else
     fail "delete_context failed" "$output"
@@ -155,7 +160,7 @@ fi
 
 echo -e "\n${YELLOW}Test 13: List guides (should be empty again)${NC}"
 output=$(call_tool "list_guides" "{}")
-if echo "$output" | grep -q '"total":0'; then
+if echo "$output" | tr -d '\n ' | grep -q '"total":0'; then
     pass "list_guides empty after cleanup"
 else
     fail "list_guides should be empty" "$output"
@@ -163,7 +168,7 @@ fi
 
 echo -e "\n${YELLOW}Test 14: List contexts (should be empty again)${NC}"
 output=$(call_tool "list_contexts" "{}")
-if echo "$output" | grep -q '"total":0'; then
+if echo "$output" | tr -d '\n ' | grep -q '"total":0'; then
     pass "list_contexts empty after cleanup"
 else
     fail "list_contexts should be empty" "$output"

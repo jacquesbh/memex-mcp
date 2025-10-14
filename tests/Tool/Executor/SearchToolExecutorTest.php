@@ -8,20 +8,10 @@ use Memex\Service\ContextService;
 use Memex\Service\GuideService;
 use Memex\Tool\Executor\SearchToolExecutor;
 use PHPUnit\Framework\TestCase;
-use Symfony\AI\McpSdk\Capability\Tool\ToolCall;
 
 final class SearchToolExecutorTest extends TestCase
 {
-    public function testGetNameReturnsSearchKnowledgeBase(): void
-    {
-        $guideService = $this->createMock(GuideService::class);
-        $contextService = $this->createMock(ContextService::class);
-        $executor = new SearchToolExecutor($guideService, $contextService);
-        
-        $this->assertSame('search_knowledge_base', $executor->getName());
-    }
-
-    public function testCallSearchesBothTypesWhenNoTypeSpecified(): void
+    public function testExecuteSearchesBothTypesWhenNoTypeSpecified(): void
     {
         $guideResults = [
             ['score' => 0.9, 'type' => 'guide', 'slug' => 'g1', 'name' => 'Guide 1', 'title' => 'G1', 'tags' => [], 'content' => 'guide content'],
@@ -43,17 +33,16 @@ final class SearchToolExecutorTest extends TestCase
             ->willReturn($contextResults);
         
         $executor = new SearchToolExecutor($guideService, $contextService);
-        $toolCall = new ToolCall('test-id', 'search_knowledge_base', ['query' => 'test query']);
         
-        $result = $executor->call($toolCall);
+        $result = $executor->execute('test query');
         
-        $data = json_decode($result->result, true);
-        $this->assertTrue($data['success']);
-        $this->assertSame(2, $data['total_results']);
-        $this->assertSame(0.9, $data['results'][0]['score']);
+        $this->assertIsArray($result);
+        $this->assertTrue($result['success']);
+        $this->assertSame(2, $result['total_results']);
+        $this->assertSame(0.9, $result['results'][0]['score']);
     }
 
-    public function testCallSearchesOnlyGuidesWhenTypeSpecified(): void
+    public function testExecuteSearchesOnlyGuidesWhenTypeSpecified(): void
     {
         $guideResults = [
             ['score' => 0.9, 'type' => 'guide', 'slug' => 'g1', 'name' => 'Guide 1', 'title' => 'G1', 'tags' => [], 'content' => 'guide content'],
@@ -69,19 +58,15 @@ final class SearchToolExecutorTest extends TestCase
             ->method('search');
         
         $executor = new SearchToolExecutor($guideService, $contextService);
-        $toolCall = new ToolCall('test-id', 'search_knowledge_base', [
-            'query' => 'test query',
-            'type' => 'guide',
-        ]);
         
-        $result = $executor->call($toolCall);
+        $result = $executor->execute('test query', 'guide');
         
-        $data = json_decode($result->result, true);
-        $this->assertTrue($data['success']);
-        $this->assertSame(1, $data['total_results']);
+        $this->assertIsArray($result);
+        $this->assertTrue($result['success']);
+        $this->assertSame(1, $result['total_results']);
     }
 
-    public function testCallRespectsLimitParameter(): void
+    public function testExecuteRespectsLimitParameter(): void
     {
         $guideService = $this->createMock(GuideService::class);
         $guideService->expects($this->once())
@@ -96,30 +81,7 @@ final class SearchToolExecutorTest extends TestCase
             ->willReturn([]);
         
         $executor = new SearchToolExecutor($guideService, $contextService);
-        $toolCall = new ToolCall('test-id', 'search_knowledge_base', [
-            'query' => 'test query',
-            'limit' => 10,
-        ]);
         
-        $executor->call($toolCall);
-    }
-
-    public function testCallHandlesException(): void
-    {
-        $guideService = $this->createMock(GuideService::class);
-        $guideService->method('search')
-            ->willThrowException(new \RuntimeException('Search failed'));
-        
-        $contextService = $this->createMock(ContextService::class);
-        
-        $executor = new SearchToolExecutor($guideService, $contextService);
-        $toolCall = new ToolCall('test-id', 'search_knowledge_base', ['query' => 'test']);
-        
-        $result = $executor->call($toolCall);
-        
-        $data = json_decode($result->result, true);
-        $this->assertFalse($data['success']);
-        $this->assertSame('Search failed', $data['error']);
-        $this->assertTrue($result->isError);
+        $executor->execute('test query', null, 10);
     }
 }

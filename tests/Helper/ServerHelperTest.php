@@ -7,11 +7,8 @@ namespace Memex\Tests\Helper;
 use Memex\Helper\ServerHelper;
 use Memex\Service\ContextService;
 use Memex\Service\GuideService;
-use Memex\Service\PatternCompilerService;
-use Memex\Service\VectorService;
-use Memex\Tool\MemexToolChain;
+use Mcp\Server;
 use PHPUnit\Framework\TestCase;
-use Symfony\AI\McpSdk\Server\JsonRpcHandler;
 
 final class ServerHelperTest extends TestCase
 {
@@ -48,8 +45,10 @@ final class ServerHelperTest extends TestCase
     {
         $container = ServerHelper::buildContainer($this->testKbPath);
         
-        $this->assertNotNull($container->get(MemexToolChain::class));
-        $this->assertInstanceOf(MemexToolChain::class, $container->get(MemexToolChain::class));
+        $this->assertNotNull($container->get(GuideService::class));
+        $this->assertInstanceOf(GuideService::class, $container->get(GuideService::class));
+        $this->assertNotNull($container->get(ContextService::class));
+        $this->assertInstanceOf(ContextService::class, $container->get(ContextService::class));
     }
 
     public function testBuildContainerReturnsCompiledContainer(): void
@@ -59,32 +58,23 @@ final class ServerHelperTest extends TestCase
         $this->assertTrue($container->isCompiled());
     }
 
-    public function testBuildContainerCanRetrieveToolChain(): void
+    public function testCreateServerReturnsServer(): void
     {
-        $container = ServerHelper::buildContainer($this->testKbPath);
+        $guideService = $this->createMock(GuideService::class);
+        $contextService = $this->createMock(ContextService::class);
         
-        $toolChain = $container->get(MemexToolChain::class);
+        $server = ServerHelper::createServer($guideService, $contextService, '1.0.0');
         
-        $this->assertInstanceOf(MemexToolChain::class, $toolChain);
+        $this->assertInstanceOf(Server::class, $server);
     }
 
-    public function testCreateJsonRpcHandlerReturnsHandler(): void
+    public function testCreateServerAcceptsCustomVersion(): void
     {
-        $container = ServerHelper::buildContainer($this->testKbPath);
-        $memexToolChain = $container->get(MemexToolChain::class);
+        $guideService = $this->createMock(GuideService::class);
+        $contextService = $this->createMock(ContextService::class);
         
-        $handler = ServerHelper::createJsonRpcHandler($memexToolChain->getChain(), '1.0.0');
+        $server = ServerHelper::createServer($guideService, $contextService, '2.0.0');
         
-        $this->assertInstanceOf(JsonRpcHandler::class, $handler);
-    }
-
-    public function testCreateJsonRpcHandlerAcceptsCustomVersion(): void
-    {
-        $container = ServerHelper::buildContainer($this->testKbPath);
-        $memexToolChain = $container->get(MemexToolChain::class);
-        
-        $handler = ServerHelper::createJsonRpcHandler($memexToolChain->getChain(), '2.0.0');
-        
-        $this->assertInstanceOf(JsonRpcHandler::class, $handler);
+        $this->assertInstanceOf(Server::class, $server);
     }
 }

@@ -22,26 +22,25 @@ Complete command reference: [USAGE.md](USAGE.md)
   - `memex.sha256` (for self-update verification)
   - `memex.sha512` (for manual verification)
 
-## Code Style (PHP 8.3+, Symfony MCP SDK)
+## Code Style (PHP 8.3+, Official MCP SDK)
+- **MCP SDK**: Uses official `mcp/sdk` package (not `symfony/mcp-sdk`)
 - **Strict types**: Always use `declare(strict_types=1);` at top of file
 - **Constructor DI**: Use constructor property promotion with `readonly` for services
 - **Type hints**: Full type declarations on all parameters, returns, and properties
 - **Namespacing**: PSR-4 autoloading (`Memex\` → `src/`)
 - **Naming**: PascalCase for classes, camelCase for methods/properties
-- **Abstract patterns**: Extend base classes when sharing behavior (e.g., `ContentService`, `AbstractToolMetadata`)
-- **Tool architecture**: Separate Metadata (schema) from Executor (logic)
+- **Tool architecture**: Direct callable registration via `Server::builder()->addTool()`
+- **Tool executors**: Plain `final readonly` classes with typed `execute()` methods returning arrays
 - **Error handling**: Throw `RuntimeException` for operational errors, `InvalidArgumentException` for validation
 - **Validation**: Always validate user input (title, content, slug) before operations
 - **Security**: Check path traversal, validate slugs, limit content size (1MB max)
-- **Tool returns**: Executors return `ToolCallResult` with structured data
 - **No comments**: Code should be self-documenting
 
 ## Tool Creation Pattern
 When adding a new MCP tool:
-1. Create `src/Tool/Metadata/XxxToolMetadata.php` extending `AbstractToolMetadata`
-2. Create `src/Tool/Executor/XxxToolExecutor.php` implementing `ToolExecutorInterface` + `IdentifierInterface`
-3. Add both to `MemexToolChain` constructor
-4. Test with Claude Desktop
+1. Create `src/Tool/Executor/XxxToolExecutor.php` as `final readonly class` with `execute()` method
+2. Register in `ServerHelper::createServer()` via `->addTool([XxxToolExecutor::class, 'execute'], 'tool_name', 'description')`
+3. Test with MCP Inspector or Claude Desktop
 
 ## MCP Tools Workflow (UUID-based)
 
