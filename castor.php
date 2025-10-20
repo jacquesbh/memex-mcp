@@ -11,6 +11,7 @@ use Memex\Helper\ApplicationHelper;
 use Memex\Helper\ServerHelper;
 use Memex\Service\ContextService;
 use Memex\Service\GuideService;
+use Memex\Service\VectorService;
 use Mcp\Server\Transport\StdioTransport;
 
 use Humbug\SelfUpdate\Updater;
@@ -177,6 +178,89 @@ function embed(
 
     io()->newLine();
     io()->success("Successfully indexed " . ($guidesCount + $contextsCount) . " items");
+}
+
+#[AsTask(description: 'List all guides and contexts')]
+function all(
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
+    ?string $knowledgeBase = null,
+    #[AsOption(name: 'type', description: 'Filter by type (guide|context)')]
+    ?string $type = null
+): void
+{
+    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
+    $container = ServerHelper::buildContainer($kbPath);
+    $vectorService = $container->get(VectorService::class);
+
+    $results = $vectorService->listAll($type);
+
+    io()->title('📚 All Content');
+    io()->writeln("Path: {$kbPath}");
+    
+    if ($type) {
+        io()->writeln("Filter: {$type}");
+    }
+    
+    io()->newLine();
+
+    if (empty($results)) {
+        io()->warning('No content found');
+        return;
+    }
+
+    io()->writeln("Found " . count($results) . " items:");
+    io()->newLine();
+
+    foreach ($results as $item) {
+        $tags = !empty($item['tags']) ? ' [' . implode(', ', $item['tags']) . ']' : '';
+        io()->writeln("  • [{$item['type']}] {$item['title']}{$tags}");
+        io()->writeln("    {$item['uuid']}");
+        io()->newLine();
+    }
+}
+
+#[AsTask(description: 'Search guides and contexts using AI semantic search')]
+function search(
+    string $query,
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
+    ?string $knowledgeBase = null,
+    #[AsOption(name: 'limit', description: 'Maximum number of results')]
+    int $limit = 5
+): void
+{
+    $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
+    $container = ServerHelper::buildContainer($kbPath);
+    $vectorService = $container->get(VectorService::class);
+
+    io()->title('🔍 Semantic Search');
+    io()->writeln("Query: \"{$query}\"");
+    io()->writeln("Path: {$kbPath}");
+    io()->newLine();
+
+    $results = $vectorService->search($query, $limit);
+
+    if (empty($results)) {
+        io()->warning('No results found');
+        return;
+    }
+
+    io()->writeln("Found " . count($results) . " matches:");
+    io()->newLine();
+
+    foreach ($results as $result) {
+        $score = ($result['score'] * 100);
+        $tags = !empty($result['tags']) ? ' [' . implode(', ', $result['tags']) . ']' : '';
+        
+        io()->writeln("  📊 Score: {$score}%");
+        io()->writeln("  • [{$result['type']}] {$result['title']}{$tags}");
+        
+        $preview = mb_substr($result['content'], 0, 150);
+        if (mb_strlen($result['content']) > 150) {
+            $preview .= '...';
+        }
+        io()->writeln("    {$preview}");
+        io()->newLine();
+    }
 }
 
 #[AsTask(description: 'Check system health and configuration')]

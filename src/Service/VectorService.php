@@ -236,16 +236,19 @@ class VectorService
         
         $results = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $metadata = json_decode($row['metadata'], true);
+            $uuid = $row['uuid'] ?? $metadata['metadata']['uuid'] ?? null;
+            
             $results[] = [
                 'id' => $row['id'],
                 'type' => $row['type'],
                 'slug' => $row['slug'],
-                'uuid' => $row['uuid'],
+                'uuid' => $uuid,
                 'name' => $row['name'],
                 'title' => $row['title'],
                 'tags' => json_decode($row['tags'], true),
                 'content' => $row['content'],
-                'metadata' => json_decode($row['metadata'], true),
+                'metadata' => $metadata,
             ];
         }
         

@@ -44,7 +44,8 @@ final readonly class ServerHelper
         $container->register(VectorService::class)
             ->addArgument($kbPath)
             ->addArgument(new Reference(TextSplitTransformer::class))
-            ->addArgument($numCtx);
+            ->addArgument($numCtx)
+            ->setPublic(true);
         
         $container->register(GuideService::class)
             ->addArgument($kbPath)
