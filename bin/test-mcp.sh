@@ -82,6 +82,35 @@ else
     fail "write_guide failed" "$output"
 fi
 
+echo -e "\n${YELLOW}Test 3b: Write large guide (20k chars) with chunking${NC}"
+output=$(call_tool "generate_uuid" "{}")
+LARGE_UUID=$(echo "$output" | jq -r '.uuid // empty' 2>/dev/null)
+LARGE_CONTENT=$(python3 -c "print('# Large Guide\n\nThis is a large guide to test chunking.\n\n' + '\n\n'.join(['## Section ' + str(i) + '\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.' for i in range(1, 41)]))")
+large_args=$(jq -n --arg uuid "$LARGE_UUID" --arg title "Large Guide" --arg content "$LARGE_CONTENT" '{uuid: $uuid, title: $title, content: $content}')
+output=$(call_tool "write_guide" "$large_args")
+if echo "$output" | grep -q "large-guide"; then
+    CONTENT_LEN=${#LARGE_CONTENT}
+    pass "write_guide created large-guide (${CONTENT_LEN} chars)"
+else
+    fail "write_guide large guide failed" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 3c: Search in large guide${NC}"
+output=$(call_tool "search_knowledge_base" '{"query":"Lorem ipsum dolor"}')
+if echo "$output" | grep -q "large-guide"; then
+    pass "search found content in large guide chunks"
+else
+    fail "search in large guide failed" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 3d: Delete large guide${NC}"
+output=$(call_tool "delete_guide" '{"slug":"large-guide"}')
+if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
+    pass "delete_guide removed large-guide"
+else
+    fail "delete_guide large guide failed" "$output"
+fi
+
 echo -e "\n${YELLOW}Test 4: List guides (should contain test-guide)${NC}"
 output=$(call_tool "list_guides" "{}")
 if echo "$output" | grep -q "test-guide"; then
@@ -176,5 +205,5 @@ fi
 
 rm -rf "$TEST_KB"
 
-echo -e "\n${GREEN}✅ All 14 MCP integration tests passed!${NC}"
+echo -e "\n${GREEN}✅ All 17 MCP integration tests passed!${NC}"
 exit 0

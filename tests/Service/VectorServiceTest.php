@@ -23,7 +23,7 @@ final class VectorServiceTest extends TestCase
             $this->markTestSkipped('Ollama tests skipped');
         }
 
-        $chunker = new TextSplitTransformer(2000, 200);
+        $chunker = new TextSplitTransformer(700, 200);
         $this->service = new VectorService($this->tempDir, $chunker, 512);
     }
 
@@ -473,7 +473,7 @@ final class VectorServiceTest extends TestCase
         $this->assertGreaterThan(0, count($chunks), 'Large section should be split into chunks');
 
         foreach ($chunks as $chunk) {
-            $this->assertLessThanOrEqual(2000, mb_strlen($chunk['content']), 'Each chunk should be <= 2000 chars');
+            $this->assertLessThanOrEqual(700, mb_strlen($chunk['content']), 'Each chunk should be <= 700 chars');
         }
     }
 

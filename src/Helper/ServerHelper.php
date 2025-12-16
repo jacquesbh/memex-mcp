@@ -31,7 +31,7 @@ final readonly class ServerHelper
     {
         $container = new ContainerBuilder();
         
-        $chunkSize = (int) ($_ENV['OLLAMA_CHUNK_SIZE'] ?? 2000);
+        $chunkSize = (int) ($_ENV['OLLAMA_CHUNK_SIZE'] ?? 700);
         $chunkOverlap = (int) ($_ENV['OLLAMA_CHUNK_OVERLAP'] ?? 200);
         $numCtx = (int) ($_ENV['OLLAMA_NUM_CTX'] ?? 512);
         
