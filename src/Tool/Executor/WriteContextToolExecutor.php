@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Memex\Tool\Executor;
 
+use Mcp\Capability\Attribute\Schema;
 use Memex\Service\ContextService;
 
 final readonly class WriteContextToolExecutor
@@ -12,7 +13,14 @@ final readonly class WriteContextToolExecutor
         private ContextService $contextService
     ) {}
 
-    public function execute(string $uuid, string $name, string $content, array $tags = [], bool $overwrite = false): array
+    public function execute(
+        string $uuid,
+        string $name,
+        string $content,
+        #[Schema(items: ['type' => 'string'])]
+        array $tags = [],
+        bool $overwrite = false
+    ): array
     {
         $result = $this->contextService->write($uuid, $name, $content, $tags, $overwrite);
         

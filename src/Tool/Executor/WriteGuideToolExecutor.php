@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Memex\Tool\Executor;
 
+use Mcp\Capability\Attribute\Schema;
 use Memex\Service\GuideService;
 
 final readonly class WriteGuideToolExecutor
@@ -12,7 +13,14 @@ final readonly class WriteGuideToolExecutor
         private GuideService $guideService
     ) {}
 
-    public function execute(string $uuid, string $title, string $content, array $tags = [], bool $overwrite = false): array
+    public function execute(
+        string $uuid,
+        string $title,
+        string $content,
+        #[Schema(items: ['type' => 'string'])]
+        array $tags = [],
+        bool $overwrite = false
+    ): array
     {
         $result = $this->guideService->write($uuid, $title, $content, $tags, $overwrite);
         
