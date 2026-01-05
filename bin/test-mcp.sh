@@ -187,6 +187,115 @@ else
     fail "search_knowledge_base failed" "$output"
 fi
 
+echo -e "\n${YELLOW}Test 10b: Generate UUID for emoji guide${NC}"
+output=$(call_tool "generate_uuid" "{}")
+EMOJI_GUIDE_UUID=$(echo "$output" | jq -r '.uuid // empty' 2>/dev/null)
+if [[ -n "$EMOJI_GUIDE_UUID" ]]; then
+    pass "generate_uuid for emoji guide: $EMOJI_GUIDE_UUID"
+else
+    fail "generate_uuid failed for emoji guide" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10c: Write guide with emojis in content${NC}"
+EMOJI_CONTENT="# Welcome Guide 🎉
+
+This guide contains various emojis to test UTF-8 multibyte handling.
+
+## Features ✨
+
+- Fast search 🔍
+- Easy to use 👍
+- Supports unicode: café, naïve, 日本語
+- Emojis everywhere: 🚀 💡 🎯 ❤️ 🔥 ⭐
+
+## Code Examples 💻
+
+Here's some code with special chars:
+
+\`\`\`php
+\$message = \"Hello 世界! 🌍\";
+echo \$message;
+\`\`\`
+
+## Conclusion 🏁
+
+Thanks for reading! 🙏"
+
+emoji_guide_args=$(jq -n --arg uuid "$EMOJI_GUIDE_UUID" --arg title "Emoji Test Guide" --arg content "$EMOJI_CONTENT" '{uuid: $uuid, title: $title, content: $content}')
+output=$(call_tool "write_guide" "$emoji_guide_args")
+if echo "$output" | grep -q "emoji-test-guide"; then
+    pass "write_guide with emojis succeeded"
+else
+    fail "write_guide with emojis failed" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10d: Get emoji guide and verify content${NC}"
+get_emoji_args=$(jq -n --arg uuid "$EMOJI_GUIDE_UUID" '{uuid: $uuid}')
+output=$(call_tool "get_guide" "$get_emoji_args")
+if echo "$output" | grep -q "🎉" && echo "$output" | grep -q "日本語"; then
+    pass "get_guide preserved emojis and unicode"
+else
+    fail "get_guide lost emojis or unicode" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10e: Search for emoji content${NC}"
+output=$(call_tool "search_knowledge_base" '{"query":"emojis unicode handling"}')
+if echo "$output" | grep -q "emoji-test-guide"; then
+    pass "search found emoji guide"
+else
+    fail "search for emoji content failed" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10f: Generate UUID for emoji context${NC}"
+output=$(call_tool "generate_uuid" "{}")
+EMOJI_CTX_UUID=$(echo "$output" | jq -r '.uuid // empty' 2>/dev/null)
+if [[ -n "$EMOJI_CTX_UUID" ]]; then
+    pass "generate_uuid for emoji context: $EMOJI_CTX_UUID"
+else
+    fail "generate_uuid failed for emoji context" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10g: Write context with emojis${NC}"
+EMOJI_CTX_CONTENT="You are a friendly assistant 🤖 that helps users with:
+- Code review 👀
+- Bug fixing 🐛
+- Documentation 📚
+
+Always respond with enthusiasm! 🎉"
+
+emoji_ctx_args=$(jq -n --arg uuid "$EMOJI_CTX_UUID" --arg name "Emoji Bot Context" --arg content "$EMOJI_CTX_CONTENT" '{uuid: $uuid, name: $name, content: $content}')
+output=$(call_tool "write_context" "$emoji_ctx_args")
+if echo "$output" | grep -q "emoji-bot-context"; then
+    pass "write_context with emojis succeeded"
+else
+    fail "write_context with emojis failed" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10h: Get emoji context and verify content${NC}"
+get_emoji_ctx_args=$(jq -n --arg uuid "$EMOJI_CTX_UUID" '{uuid: $uuid}')
+output=$(call_tool "get_context" "$get_emoji_ctx_args")
+if echo "$output" | grep -q "🤖" && echo "$output" | grep -q "🐛"; then
+    pass "get_context preserved emojis"
+else
+    fail "get_context lost emojis" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10i: Delete emoji guide${NC}"
+output=$(call_tool "delete_guide" '{"slug":"emoji-test-guide"}')
+if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
+    pass "delete_guide removed emoji-test-guide"
+else
+    fail "delete_guide emoji guide failed" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10j: Delete emoji context${NC}"
+output=$(call_tool "delete_context" '{"slug":"emoji-bot-context"}')
+if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
+    pass "delete_context removed emoji-bot-context"
+else
+    fail "delete_context emoji context failed" "$output"
+fi
+
 echo -e "\n${YELLOW}Test 11: Delete guide${NC}"
 output=$(call_tool "delete_guide" '{"slug":"test-guide"}')
 if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
@@ -221,5 +330,5 @@ fi
 
 rm -rf "$TEST_KB"
 
-echo -e "\n${GREEN}✅ All 17 MCP integration tests passed!${NC}"
+echo -e "\n${GREEN}✅ All 24 MCP integration tests passed!${NC}"
 exit 0

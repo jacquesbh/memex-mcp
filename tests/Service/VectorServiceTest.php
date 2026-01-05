@@ -566,4 +566,123 @@ final class VectorServiceTest extends TestCase
     {
         $this->assertFalse($this->service->existsByUuid('550e8400-e29b-41d4-a716-446655440888'));
     }
+
+    public function testIndexWithEmojiContent(): void
+    {
+        $emojiContent = "Guide avec emojis 🎉\n\nFeatures ✨:\n- Fast 🚀\n- Easy 👍\n- Fun 🎯";
+
+        $compiled = [
+            'name' => 'Emoji Guide',
+            'slug' => 'emoji-guide',
+            'content' => $emojiContent,
+            'sections' => [],
+            'metadata' => [
+                'uuid' => '00000000-0000-4000-8000-000000000001',
+                'type' => 'guide',
+                'title' => 'Emoji Guide',
+                'tags' => ['emoji', 'test']
+            ]
+        ];
+
+        $this->service->index('emoji-guide', 'e0e0e0e0-0000-4000-8000-000000000001', $compiled);
+
+        $results = $this->service->listAll();
+        $this->assertCount(1, $results);
+        $this->assertStringContainsString('🎉', $results[0]['content']);
+        $this->assertStringContainsString('🚀', $results[0]['content']);
+    }
+
+    public function testIndexWithUnicodeContent(): void
+    {
+        $unicodeContent = "Contenu multilingue: café, naïve, 日本語, 中文, العربية, עברית";
+
+        $compiled = [
+            'name' => 'Unicode Guide',
+            'slug' => 'unicode-guide',
+            'content' => $unicodeContent,
+            'sections' => [],
+            'metadata' => [
+                'uuid' => '00000000-0000-4000-8000-000000000002',
+                'type' => 'guide',
+                'title' => 'Unicode Guide',
+                'tags' => []
+            ]
+        ];
+
+        $this->service->index('unicode-guide', 'u0u0u0u0-0000-4000-8000-000000000002', $compiled);
+
+        $results = $this->service->listAll();
+        $this->assertCount(1, $results);
+        $this->assertStringContainsString('café', $results[0]['content']);
+        $this->assertStringContainsString('日本語', $results[0]['content']);
+    }
+
+    public function testSearchWithEmojiContent(): void
+    {
+        $this->service->index('emoji-doc', 'e1e1e1e1-0000-4000-8000-000000000001', [
+            'name' => 'Emoji Doc',
+            'content' => 'This document has rocket 🚀 and star ⭐ emojis for testing',
+            'sections' => [],
+            'metadata' => ['type' => 'guide', 'title' => 'Emoji Doc', 'tags' => []]
+        ]);
+
+        $results = $this->service->search('rocket star emojis', 5, 0.0);
+
+        $this->assertGreaterThan(0, count($results));
+        $this->assertStringContainsString('🚀', $results[0]['content']);
+        $this->assertStringContainsString('⭐', $results[0]['content']);
+    }
+
+    public function testChunkingWithEmojiContent(): void
+    {
+        $emojiSection = str_repeat('Testing emojis 🎉 and unicode café 日本語. ', 100);
+
+        $compiled = [
+            'name' => 'Large Emoji Document',
+            'slug' => 'large-emoji-doc',
+            'content' => 'Short intro with 🚀',
+            'sections' => [
+                ['title' => 'Emoji Section 🎯', 'content' => $emojiSection, 'level' => 2]
+            ],
+            'metadata' => [
+                'uuid' => '00000000-0000-4000-8000-000000000003',
+                'type' => 'guide',
+                'title' => 'Large Emoji Document',
+                'tags' => []
+            ]
+        ];
+
+        $this->service->index('large-emoji-doc', 'e2e2e2e2-0000-4000-8000-000000000003', $compiled);
+
+        $allResults = $this->service->search('emojis unicode', 100, 0.0, false);
+        $chunks = array_filter($allResults, fn($r) => $r['type'] === 'chunk');
+
+        $this->assertGreaterThan(0, count($chunks), 'Large emoji section should be split into chunks');
+
+        foreach ($chunks as $chunk) {
+            $this->assertLessThanOrEqual(700, mb_strlen($chunk['content']), 'Each chunk should be <= 700 chars');
+            $isValidUtf8 = mb_check_encoding($chunk['content'], 'UTF-8');
+            $this->assertTrue($isValidUtf8, 'Chunk content should be valid UTF-8');
+        }
+    }
+
+    public function testGetByUuidWithEmojiContent(): void
+    {
+        $uuid = 'e3e3e3e3-0000-4000-8000-000000000004';
+        $emojiContent = "Content with emojis: 🎉 ✨ 🚀 💡 and unicode: café 日本語";
+
+        $this->service->index('emoji-uuid-doc', $uuid, [
+            'name' => 'Emoji UUID Doc',
+            'content' => $emojiContent,
+            'sections' => [],
+            'metadata' => ['type' => 'guide', 'title' => 'Emoji UUID Doc', 'tags' => ['emoji']]
+        ]);
+
+        $result = $this->service->getByUuid($uuid);
+
+        $this->assertNotNull($result);
+        $this->assertStringContainsString('🎉', $result['content']);
+        $this->assertStringContainsString('café', $result['content']);
+        $this->assertStringContainsString('日本語', $result['content']);
+    }
 }
