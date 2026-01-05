@@ -9,10 +9,26 @@ NC='\033[0m'
 
 echo -e "${YELLOW}🧪 MEMEX MCP Direct JSON-RPC Integration Tests${NC}\n"
 
+# Use compiled binary if available and working, otherwise fall back to castor
 MEMEX_BIN="./memex"
+USE_CASTOR=false
+
 if [[ ! -x "$MEMEX_BIN" ]]; then
-    echo -e "${RED}✗ FAIL: memex binary not found or not executable${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠ Binary not found, using castor instead${NC}"
+    USE_CASTOR=true
+else
+    # Test if binary can actually run server (check for PDO extension)
+    QUICK_TEST_KB="/tmp/memex-quick-test-$$"
+    mkdir -p "$QUICK_TEST_KB/guides" "$QUICK_TEST_KB/contexts" "$QUICK_TEST_KB/.vectors"
+    if echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | $MEMEX_BIN server --kb="$QUICK_TEST_KB" 2>&1 | grep -q "PDO\|Class.*not found"; then
+        echo -e "${YELLOW}⚠ Binary missing required extensions, using castor instead${NC}"
+        USE_CASTOR=true
+    fi
+    rm -rf "$QUICK_TEST_KB"
+fi
+
+if [[ "$USE_CASTOR" == "true" ]]; then
+    MEMEX_BIN="symfony php vendor/bin/castor"
 fi
 
 TEST_KB="/tmp/memex-test-mcp-kb"

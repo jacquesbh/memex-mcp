@@ -1,3 +1,6 @@
+PHP_VERSION ?= 8.4
+PHP_EXTENSIONS ?= mbstring,phar,posix,tokenizer,curl,filter,openssl,pdo,pdo_sqlite
+
 .PHONY: help install clean build local.install test test-mcp test-embed coverage
 
 help: ## Display this help
@@ -12,7 +15,8 @@ clean: ## Clean generated files (binary and vendor)
 build: install ## Build the MEMEX binary (installs dependencies first)
 	$(eval VERSION := $(shell grep "const MEMEX_VERSION" castor.php | sed "s/.*'\(.*\)'.*/\1/"))
 	vendor/jolicode/castor/bin/castor repack --app-name=memex --app-version=$(VERSION) --logo-file=.castor.logo.php
-	mv memex.linux.phar memex
+	vendor/jolicode/castor/bin/castor compile memex.linux.phar --binary-path=memex --php-version=$(PHP_VERSION) --php-extensions=$(PHP_EXTENSIONS) --os=$(shell uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/macos/') --arch=$(shell uname -m | sed 's/arm64/aarch64/')
+	rm -f memex.linux.phar
 	chmod +x memex
 	@echo "\n✅ MEMEX binary created successfully!"
 	@echo "Test it with: ./memex --version"
@@ -27,7 +31,7 @@ local.install: ## Install memex binary locally
 	@echo "Version: $$($(INSTALL_DIR)memex --version)"
 
 test: vendor ## Run PHPUnit unit tests
-	vendor/bin/phpunit
+	symfony php vendor/bin/phpunit
 
 test-mcp: ## Run MCP Direct JSON-RPC integration tests
 	@bash bin/test-mcp.sh
@@ -46,7 +50,7 @@ test-embed: vendor ## Test embed command with --force flag
 	echo "\n✅ All embed --force tests passed!"
 
 coverage: vendor ## Generate HTML coverage report in /tmp/coverage
-	XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-html=/tmp/coverage
+	XDEBUG_MODE=coverage symfony php vendor/bin/phpunit --coverage-html=/tmp/coverage
 	@echo "\n✅ Coverage report generated at: /tmp/coverage/index.html"
 	@echo "Open with: open /tmp/coverage/index.html"
 
