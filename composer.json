@@ -9,7 +9,7 @@
         "laravel-zero/phar-updater": "^1.4",
         "league/commonmark": "^2.7",
         "mcp/sdk": "dev-main",
-        "symfony/ai-platform": "dev-main",
+        "symfony/ai-platform": "~0.1.0",
         "symfony/ai-store": "dev-main",
         "symfony/config": "^7.3",
         "symfony/console": "^7.2",
