@@ -43,7 +43,7 @@ final readonly class SearchToolExecutor
                     'name' => $result['name'],
                     'title' => $result['title'],
                     'tags' => $result['tags'],
-                    'content_preview' => substr($result['content'], 0, 200) . '...',
+                    'content_preview' => mb_substr($result['content'], 0, 200) . '...',
                 ];
             }, $results),
         ];
