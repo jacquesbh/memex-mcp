@@ -171,7 +171,7 @@ Completely quit and relaunch Claude Desktop.
 
 ### 4. Verify Connection
 
-In Claude Desktop, look for the 🔌 (plug) icon in the bottom left or settings. You should see `memex` connected with 8 available tools.
+In Claude Desktop, look for the 🔌 (plug) icon in the bottom left or settings. You should see `memex` connected with 10 available tools.
 
 ### 5. Use the Server
 

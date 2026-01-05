@@ -1,6 +1,6 @@
 # MEMEX
 
-![CI](https://github.com/jacquesbh/memex-mcp/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/jacquesbh/memex-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/jacquesbh/memex-mcp/actions/workflows/ci.yml)
 
 ```
          ███╗   ███╗███████╗███╗   ███╗███████╗██╗  ██╗
@@ -53,8 +53,7 @@ Inspired by Vannevar Bush's visionary [Memex](https://en.wikipedia.org/wiki/Meme
 - PHP 8.3+
 - Composer
 - **Ollama** with `nomic-embed-text` model (for semantic search) - [Install Ollama](https://ollama.com)
-- **Node.js 20+** (for MCP Inspector integration tests)
-- **Built with Symfony MCP SDK** (official Symfony AI SDK)
+- **Built with official [MCP SDK](https://github.com/modelcontextprotocol/php-sdk)** (`mcp/sdk`)
 
 ## Supported Operating Systems
 
@@ -131,10 +130,13 @@ Custom KB: Add `"--kb=/path"` to `args` array (optional if using config file).
 
 All configuration options (OpenCode, custom KB, etc.): [USAGE.md](USAGE.md)
 
-## MCP Tools
+## MCP Tools (10)
 
-**Guides:** `get_guide`, `list_guides`, `write_guide`, `delete_guide`
-**Contexts:** `get_context`, `list_contexts`, `write_context`, `delete_context`
+| Category | Tools |
+|----------|-------|
+| **Guides** | `get_guide`, `list_guides`, `write_guide`, `delete_guide` |
+| **Contexts** | `get_context`, `list_contexts`, `write_context`, `delete_context` |
+| **Utility** | `generate_uuid`, `search_knowledge_base` |
 
 
 
@@ -181,9 +183,9 @@ Inspired by Vannevar Bush's 1945 vision of a device to store and retrieve knowle
 
 ## Architecture
 
-Built with PHP 8.3+ and [Symfony MCP SDK](https://symfony.com/doc/current/ai_sdk.html), MEMEX uses:
+Built with PHP 8.3+ and the official [MCP SDK](https://github.com/modelcontextprotocol/php-sdk), MEMEX uses:
 - **Services:** Guide/Context management, Markdown→JSON compilation, semantic search (Ollama embeddings)
-- **Tools:** 8 MCP tools (get, list, write, delete for guides/contexts)
+- **Tools:** 10 MCP tools (CRUD for guides/contexts + UUID generation + semantic search)
 - **CLI:** [Castor](https://github.com/jolicode/castor) framework, compiled to PHAR binary
 - **Security:** Input validation, path traversal protection, 1MB content limit
 
