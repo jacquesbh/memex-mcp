@@ -685,4 +685,46 @@ final class VectorServiceTest extends TestCase
         $this->assertStringContainsString('café', $result['content']);
         $this->assertStringContainsString('日本語', $result['content']);
     }
+
+    public function testIndexLargeContentWithEmojisPreservesUnicodeInDatabase(): void
+    {
+        $uuid = 'e4e4e4e4-0000-4000-8000-000000000005';
+        $emojiContent = "# Guide complet 🎉\n\n" .
+            "## Introduction ✨\n\n" .
+            str_repeat("Contenu avec emojis 🚀 et unicode café 日本語 中文. ", 50) .
+            "\n\n## Conclusion 🏁\n\nMerci! 🙏";
+
+        $this->service->index('large-emoji-metadata', $uuid, [
+            'name' => 'Large Emoji Metadata Doc',
+            'content' => $emojiContent,
+            'sections' => [
+                ['title' => 'Section avec emoji 🎯', 'content' => str_repeat('Test emoji 🔥 content. ', 30), 'level' => 2]
+            ],
+            'metadata' => [
+                'type' => 'guide',
+                'title' => 'Large Emoji Metadata Doc',
+                'tags' => ['emoji🎉', 'test✨', 'unicode日本語']
+            ]
+        ]);
+
+        $db = new \PDO("sqlite:{$this->tempDir}/.vectors/embeddings.db");
+        $stmt = $db->prepare('SELECT tags, metadata FROM embeddings WHERE uuid = ?');
+        $stmt->execute([$uuid]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        $this->assertNotNull($row);
+        
+        $rawTags = $row['tags'];
+        $rawMetadata = $row['metadata'];
+        
+        $this->assertStringContainsString('🎉', $rawTags, 'Raw tags JSON should contain emoji 🎉 not escaped');
+        $this->assertStringContainsString('日本語', $rawTags, 'Raw tags JSON should contain japanese not escaped');
+        $this->assertStringNotContainsString('\ud83c', $rawTags, 'Raw tags should not contain escaped surrogate pairs');
+        $this->assertStringNotContainsString('\u65e5', $rawTags, 'Raw tags should not contain escaped unicode');
+        
+        $this->assertStringContainsString('🎉', $rawMetadata, 'Raw metadata JSON should contain emoji 🎉 not escaped');
+        $this->assertStringContainsString('日本語', $rawMetadata, 'Raw metadata JSON should contain japanese not escaped');
+        $this->assertStringNotContainsString('\ud83c', $rawMetadata, 'Raw metadata should not contain escaped surrogate pairs');
+        $this->assertStringNotContainsString('\u65e5', $rawMetadata, 'Raw metadata should not contain escaped unicode');
+    }
 }
