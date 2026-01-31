@@ -1,4 +1,4 @@
-PHP_VERSION ?= 8.4
+PHP_VERSION ?= $(shell cat .php-version)
 PHP_EXTENSIONS ?= mbstring,phar,posix,tokenizer,curl,filter,openssl,pdo,pdo_sqlite
 
 .PHONY: help install clean build local.install test test-mcp test-embed coverage
@@ -10,12 +10,13 @@ install: vendor ## Install Composer dependencies
 
 clean: ## Clean generated files (binary and vendor)
 	rm -f memex memex.linux.phar
+	rm -f composer.lock
 	rm -rf vendor/
 
 build: install ## Build the MEMEX binary (installs dependencies first)
 	$(eval VERSION := $(shell grep "const MEMEX_VERSION" castor.php | sed "s/.*'\(.*\)'.*/\1/"))
-	vendor/jolicode/castor/bin/castor repack --app-name=memex --app-version=$(VERSION) --logo-file=.castor.logo.php
-	vendor/jolicode/castor/bin/castor compile memex.linux.phar --binary-path=memex --php-version=$(PHP_VERSION) --php-extensions=$(PHP_EXTENSIONS) --os=$(shell uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/macos/') --arch=$(shell uname -m | sed 's/arm64/aarch64/')
+	symfony php vendor/jolicode/castor/bin/castor repack --app-name=memex --app-version=$(VERSION) --logo-file=.castor.logo.php
+	symfony php vendor/jolicode/castor/bin/castor compile memex.linux.phar --binary-path=memex --php-version=$(PHP_VERSION) --php-extensions=$(PHP_EXTENSIONS) --os=$(shell uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/macos/') --arch=$(shell uname -m | sed 's/arm64/aarch64/')
 	rm -f memex.linux.phar
 	chmod +x memex
 	@echo "\n✅ MEMEX binary created successfully!"
