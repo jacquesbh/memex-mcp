@@ -62,7 +62,7 @@ local.install: ## Install memex binary locally
 	$(eval CURRENT_MEMEX := $(shell which memex 2>/dev/null))
 	$(eval INSTALL_DIR := $(if $(CURRENT_MEMEX),$(dir $(CURRENT_MEMEX)),$(HOME)/bin/))
 	@mkdir -p $(INSTALL_DIR)
-	@chmod +x memex
+	@rm -f $(INSTALL_DIR)memex
 	@cp memex $(INSTALL_DIR)memex
 	@echo "\n✅ MEMEX installed successfully at: $(INSTALL_DIR)memex"
 	@echo "Version: $$($(INSTALL_DIR)memex --version)"
