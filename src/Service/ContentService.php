@@ -75,16 +75,22 @@ abstract class ContentService
             $slug = $existing['slug'];
         }
         
-        $filePath = $this->getFullContentDir() . '/' . $slug . '.md';
-        
+        $contentDir = $this->getFullContentDir();
+        $filePath = $contentDir . '/' . $slug . '.md';
+
         $frontmatter = $this->buildFrontmatter($uuid, $title, $tags, $existing !== null);
         $fullContent = $frontmatter . "\n" . $content;
-        
-        if (!is_dir($this->getFullContentDir())) {
-            mkdir($this->getFullContentDir(), 0755, true);
+
+        if (!is_dir($contentDir)) {
+            if (!mkdir($contentDir, 0755, true) && !is_dir($contentDir)) {
+                throw new RuntimeException("Failed to create directory: {$contentDir}");
+            }
         }
-        
-        file_put_contents($filePath, $fullContent);
+
+        $bytes = file_put_contents($filePath, $fullContent);
+        if ($bytes === false) {
+            throw new RuntimeException("Failed to write {$this->getContentType()} file: {$filePath}");
+        }
         
         $compiled = $this->compiler->compile($fullContent, $slug . '.md');
         $this->vectorService->index($slug, $uuid, $compiled);
@@ -114,9 +120,14 @@ abstract class ContentService
         }
         
         $content = file_get_contents($realPath);
+        if ($content === false) {
+            throw new RuntimeException("Failed to read {$this->getContentType()} file: {$realPath}");
+        }
         $metadata = $this->compiler->compile($content, basename($realPath));
-        
-        unlink($realPath);
+
+        if (!unlink($realPath)) {
+            throw new RuntimeException("Failed to delete {$this->getContentType()} file: {$realPath}");
+        }
         
         $this->vectorService->delete($slug);
         
@@ -142,6 +153,10 @@ abstract class ContentService
         $count = 0;
         foreach ($finder as $file) {
             $content = $file->getContents();
+            if ($content === false) {
+                $path = $file->getRealPath() ?: $file->getPathname();
+                throw new RuntimeException("Failed to read {$path}");
+            }
             $compiled = $this->compiler->compile($content, $file->getFilename());
             
             if (!isset($compiled['metadata']['uuid'])) {

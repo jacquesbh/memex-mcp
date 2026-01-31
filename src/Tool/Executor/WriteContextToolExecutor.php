@@ -22,17 +22,21 @@ final readonly class WriteContextToolExecutor
         bool $overwrite = false
     ): array
     {
-        $result = $this->contextService->write($uuid, $name, $content, $tags, $overwrite);
-        
-        return [
-            'success' => true,
-            'action' => $overwrite ? 'updated' : 'created',
-            'uuid' => $result['uuid'],
-            'slug' => $result['slug'],
-            'name' => $result['title'],
-            'file' => "contexts/{$result['slug']}.md",
-            'tags' => $tags,
-            'message' => "Context created/updated. Use UUID '{$result['uuid']}' to retrieve it.",
-        ];
+        try {
+            $result = $this->contextService->write($uuid, $name, $content, $tags, $overwrite);
+
+            return [
+                'success' => true,
+                'action' => $overwrite ? 'updated' : 'created',
+                'uuid' => $result['uuid'],
+                'slug' => $result['slug'],
+                'name' => $result['title'],
+                'file' => "contexts/{$result['slug']}.md",
+                'tags' => $tags,
+                'message' => "Context created/updated. Use UUID '{$result['uuid']}' to retrieve it.",
+            ];
+        } catch (\Throwable $error) {
+            return ToolErrorResponse::fromThrowable($error, ['tool' => 'write_context']);
+        }
     }
 }

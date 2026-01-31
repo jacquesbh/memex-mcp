@@ -7,6 +7,7 @@ namespace Memex\Tests\Tool\Executor;
 use Memex\Service\GuideService;
 use Memex\Tool\Executor\WriteGuideToolExecutor;
 use PHPUnit\Framework\TestCase;
+use InvalidArgumentException;
 
 final class WriteGuideToolExecutorTest extends TestCase
 {
@@ -44,5 +45,24 @@ final class WriteGuideToolExecutorTest extends TestCase
         $this->assertIsArray($result);
         $this->assertTrue($result['success']);
         $this->assertSame('updated', $result['action']);
+    }
+
+    public function testExecuteReturnsStructuredError(): void
+    {
+        $service = $this->createMock(GuideService::class);
+        $service->expects($this->once())
+            ->method('write')
+            ->willThrowException(new InvalidArgumentException('Invalid guide data'));
+
+        $executor = new WriteGuideToolExecutor($service);
+
+        $result = $executor->execute('00000000-0000-4000-8000-000000000001', 'Bad Guide', 'Content', [], false);
+
+        $this->assertIsArray($result);
+        $this->assertFalse($result['success']);
+        $this->assertSame(InvalidArgumentException::class, $result['error']['type']);
+        $this->assertSame('Invalid guide data', $result['error']['message']);
+        $this->assertSame('write_guide', $result['error']['context']['tool']);
+        $this->assertSame('validation', $result['error']['details']['category']);
     }
 }

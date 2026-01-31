@@ -14,13 +14,17 @@ final readonly class DeleteGuideToolExecutor
 
     public function execute(string $slug): array
     {
-        $result = $this->guideService->delete($slug);
-        
-        return [
-            'success' => true,
-            'title' => $result['title'],
-            'slug' => $result['slug'],
-            'type' => $result['type'],
-        ];
+        try {
+            $result = $this->guideService->delete($slug);
+
+            return [
+                'success' => true,
+                'title' => $result['title'],
+                'slug' => $result['slug'],
+                'type' => $result['type'],
+            ];
+        } catch (\Throwable $error) {
+            return ToolErrorResponse::fromThrowable($error, ['tool' => 'delete_guide']);
+        }
     }
 }

@@ -22,17 +22,21 @@ final readonly class WriteGuideToolExecutor
         bool $overwrite = false
     ): array
     {
-        $result = $this->guideService->write($uuid, $title, $content, $tags, $overwrite);
-        
-        return [
-            'success' => true,
-            'action' => $overwrite ? 'updated' : 'created',
-            'uuid' => $result['uuid'],
-            'slug' => $result['slug'],
-            'title' => $result['title'],
-            'file' => "guides/{$result['slug']}.md",
-            'tags' => $tags,
-            'message' => "Guide created/updated. Use UUID '{$result['uuid']}' to retrieve it.",
-        ];
+        try {
+            $result = $this->guideService->write($uuid, $title, $content, $tags, $overwrite);
+
+            return [
+                'success' => true,
+                'action' => $overwrite ? 'updated' : 'created',
+                'uuid' => $result['uuid'],
+                'slug' => $result['slug'],
+                'title' => $result['title'],
+                'file' => "guides/{$result['slug']}.md",
+                'tags' => $tags,
+                'message' => "Guide created/updated. Use UUID '{$result['uuid']}' to retrieve it.",
+            ];
+        } catch (\Throwable $error) {
+            return ToolErrorResponse::fromThrowable($error, ['tool' => 'write_guide']);
+        }
     }
 }

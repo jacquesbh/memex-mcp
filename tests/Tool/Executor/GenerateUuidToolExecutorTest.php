@@ -16,6 +16,7 @@ final class GenerateUuidToolExecutorTest extends TestCase
         $result = $executor->execute();
         
         $this->assertIsArray($result);
+        $this->assertTrue($result['success']);
         $this->assertArrayHasKey('uuid', $result);
         
         $uuid = $result['uuid'];
@@ -33,6 +34,8 @@ final class GenerateUuidToolExecutorTest extends TestCase
         $result1 = $executor->execute();
         $result2 = $executor->execute();
         
+        $this->assertTrue($result1['success']);
+        $this->assertTrue($result2['success']);
         $this->assertNotSame($result1['uuid'], $result2['uuid'], 'Generated UUIDs should be unique');
     }
 }

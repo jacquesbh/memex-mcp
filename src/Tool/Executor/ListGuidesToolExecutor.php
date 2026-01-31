@@ -14,14 +14,18 @@ final readonly class ListGuidesToolExecutor
 
     public function execute(): array
     {
-        $guides = $this->guideService->list();
-        
-        return [
-            'success' => true,
-            'how_to_display' => 'Display the list of guides in a readable format, including (important) their UUIDs and names.',
-            'what_to_do_next' => 'Use the "get_guide" tool to retrieve a specific guide by its UUID.',
-            'total' => count($guides),
-            'guides' => $guides,
-        ];
+        try {
+            $guides = $this->guideService->list();
+
+            return [
+                'success' => true,
+                'how_to_display' => 'Display the list of guides in a readable format, including (important) their UUIDs and names.',
+                'what_to_do_next' => 'Use the "get_guide" tool to retrieve a specific guide by its UUID.',
+                'total' => count($guides),
+                'guides' => $guides,
+            ];
+        } catch (\Throwable $error) {
+            return ToolErrorResponse::fromThrowable($error, ['tool' => 'list_guides']);
+        }
     }
 }

@@ -8,6 +8,7 @@ use Memex\Service\ContextService;
 use Memex\Service\GuideService;
 use Memex\Tool\Executor\SearchToolExecutor;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class SearchToolExecutorTest extends TestCase
 {
@@ -185,5 +186,28 @@ final class SearchToolExecutorTest extends TestCase
         $this->assertStringContainsString('🎉', $preview);
         $this->assertStringContainsString('✨', $preview);
         $this->assertTrue(mb_check_encoding($preview, 'UTF-8'), 'Preview should be valid UTF-8');
+    }
+
+    public function testExecuteReturnsStructuredError(): void
+    {
+        $guideService = $this->createMock(GuideService::class);
+        $guideService->expects($this->once())
+            ->method('search')
+            ->willThrowException(new RuntimeException('Search failed'));
+
+        $contextService = $this->createMock(ContextService::class);
+        $contextService->expects($this->never())
+            ->method('search');
+
+        $executor = new SearchToolExecutor($guideService, $contextService);
+
+        $result = $executor->execute('test query');
+
+        $this->assertIsArray($result);
+        $this->assertFalse($result['success']);
+        $this->assertSame(RuntimeException::class, $result['error']['type']);
+        $this->assertSame('Search failed', $result['error']['message']);
+        $this->assertSame('search_knowledge_base', $result['error']['context']['tool']);
+        $this->assertSame('runtime', $result['error']['details']['category']);
     }
 }

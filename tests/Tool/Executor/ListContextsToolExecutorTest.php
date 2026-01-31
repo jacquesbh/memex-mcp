@@ -7,6 +7,7 @@ namespace Memex\Tests\Tool\Executor;
 use Memex\Service\ContextService;
 use Memex\Tool\Executor\ListContextsToolExecutor;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 final class ListContextsToolExecutorTest extends TestCase
 {
@@ -45,5 +46,24 @@ final class ListContextsToolExecutorTest extends TestCase
         $this->assertTrue($result['success']);
         $this->assertSame(0, $result['total']);
         $this->assertEmpty($result['contexts']);
+    }
+
+    public function testExecuteReturnsStructuredError(): void
+    {
+        $service = $this->createMock(ContextService::class);
+        $service->expects($this->once())
+            ->method('list')
+            ->willThrowException(new RuntimeException('List contexts failed'));
+
+        $executor = new ListContextsToolExecutor($service);
+
+        $result = $executor->execute();
+
+        $this->assertIsArray($result);
+        $this->assertFalse($result['success']);
+        $this->assertSame(RuntimeException::class, $result['error']['type']);
+        $this->assertSame('List contexts failed', $result['error']['message']);
+        $this->assertSame('list_contexts', $result['error']['context']['tool']);
+        $this->assertSame('runtime', $result['error']['details']['category']);
     }
 }

@@ -10,8 +10,13 @@ final readonly class GenerateUuidToolExecutor
 {
     public function execute(): array
     {
-        return [
-            'uuid' => Uuid::v4()->toString(),
-        ];
+        try {
+            return [
+                'success' => true,
+                'uuid' => Uuid::v4()->toString(),
+            ];
+        } catch (\Throwable $error) {
+            return ToolErrorResponse::fromThrowable($error, ['tool' => 'generate_uuid']);
+        }
     }
 }

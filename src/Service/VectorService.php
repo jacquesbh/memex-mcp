@@ -28,11 +28,17 @@ class VectorService
         $vectorsDir = $knowledgeBasePath . '/.vectors';
 
         if (!is_dir($vectorsDir)) {
-            mkdir($vectorsDir, 0755, true);
+            if (!mkdir($vectorsDir, 0755, true) && !is_dir($vectorsDir)) {
+                throw new RuntimeException("Failed to create vectors directory: {$vectorsDir}");
+            }
         }
 
         $dbPath = $vectorsDir . '/embeddings.db';
-        $this->db = new PDO("sqlite:{$dbPath}");
+        try {
+            $this->db = new PDO("sqlite:{$dbPath}");
+        } catch (\PDOException $error) {
+            throw new RuntimeException("Failed to open embeddings database: {$dbPath}", 0, $error);
+        }
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         $this->initialize();
     }
@@ -86,10 +92,10 @@ class VectorService
             $uuid,
             $compiled['name'],
             $compiled['metadata']['title'] ?? $compiled['name'],
-            json_encode($compiled['metadata']['tags'] ?? [], JSON_UNESCAPED_UNICODE),
+            json_encode($compiled['metadata']['tags'] ?? [], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             $compiled['content'],
             $this->serializeVector($vector),
-            json_encode($compiled, JSON_UNESCAPED_UNICODE),
+            json_encode($compiled, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
             $compiled['metadata']['created'] ?? $now,
             $now,
             null,
@@ -127,7 +133,7 @@ class VectorService
                     null,
                     $compiled['name'],
                     $section['title'],
-                    json_encode([], JSON_UNESCAPED_UNICODE),
+                    json_encode([], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                     $chunkContent,
                     $this->serializeVector($chunkVector),
                     json_encode([
@@ -135,7 +141,7 @@ class VectorService
                         'section_index' => $i,
                         'section_title' => $section['title'],
                         'is_chunk' => $isChunk,
-                    ], JSON_UNESCAPED_UNICODE),
+                    ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                     $now,
                     $now,
                     $isChunk ? $sectionId : null,
@@ -324,22 +330,62 @@ class VectorService
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
 
-        if ($httpCode !== 200 || $response === false) {
-            $errorMessage = json_decode($response, true)['error'];
+        if ($response === false) {
             throw new RuntimeException(
-                sprintf("Failed to get embeddings from Ollama. Make sure Ollama is running and model '%s' is installed. Error: %s", $this->embeddingModel, $errorMessage)
+                sprintf('Failed to contact Ollama at %s. Curl error: %s', $this->ollamaUrl, $curlError)
             );
         }
 
-        $data = json_decode($response, true);
+        if ($httpCode !== 200) {
+            $errorMessage = $this->extractOllamaError($response);
+            $suffix = $errorMessage !== '' ? " Error: {$errorMessage}" : '';
+            throw new RuntimeException(
+                sprintf("Failed to get embeddings from Ollama. Make sure Ollama is running and model '%s' is installed.%s", $this->embeddingModel, $suffix)
+            );
+        }
+
+        try {
+            $data = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $error) {
+            throw new RuntimeException("Invalid JSON response from Ollama: {$response}", 0, $error);
+        }
 
         if (!isset($data['embedding']) || empty($data['embedding'])) {
             throw new RuntimeException("Invalid response from Ollama: " . $response);
         }
 
         return $data['embedding'];
+    }
+
+    private function extractOllamaError(string $response): string
+    {
+        try {
+            $data = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return trim($response);
+        }
+
+        if (!is_array($data)) {
+            return trim($response);
+        }
+
+        $error = $data['error'] ?? null;
+        if ($error === null) {
+            return trim($response);
+        }
+
+        if (is_string($error)) {
+            return $error;
+        }
+
+        try {
+            return json_encode($error, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return trim($response);
+        }
     }
 
     private function cosineSimilarity(array $a, array $b): float

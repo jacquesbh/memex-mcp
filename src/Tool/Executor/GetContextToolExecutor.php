@@ -14,15 +14,19 @@ final readonly class GetContextToolExecutor
 
     public function execute(string $uuid): array
     {
-        $context = $this->contextService->get($uuid);
-        
-        return [
-            'success' => true,
-            'uuid' => $context['metadata']['uuid'] ?? null,
-            'name' => $context['name'],
-            'metadata' => $context['metadata'],
-            'content' => $context['content'],
-            'sections' => $context['sections'] ?? [],
-        ];
+        try {
+            $context = $this->contextService->get($uuid);
+
+            return [
+                'success' => true,
+                'uuid' => $context['metadata']['uuid'] ?? null,
+                'name' => $context['name'],
+                'metadata' => $context['metadata'],
+                'content' => $context['content'],
+                'sections' => $context['sections'] ?? [],
+            ];
+        } catch (\Throwable $error) {
+            return ToolErrorResponse::fromThrowable($error, ['tool' => 'get_context']);
+        }
     }
 }
