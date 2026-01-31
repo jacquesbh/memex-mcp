@@ -47,9 +47,12 @@ class PatternCompilerService
                     $value = trim($m[2]);
                     
                     if (preg_match('/^\[(.+)\]$/', $value, $arrayMatch)) {
-                        $metadata[$key] = array_map('trim', explode(',', $arrayMatch[1]));
+                        $metadata[$key] = array_map(
+                            fn(string $item): string => $this->stripQuotes(trim($item)),
+                            explode(',', $arrayMatch[1])
+                        );
                     } else {
-                        $metadata[$key] = $value;
+                        $metadata[$key] = $this->stripQuotes($value);
                     }
                 }
             }
@@ -58,6 +61,20 @@ class PatternCompilerService
         }
 
         return [];
+    }
+
+    private function stripQuotes(string $value): string
+    {
+        $length = strlen($value);
+        if ($length >= 2) {
+            $first = $value[0];
+            $last = $value[$length - 1];
+            if (($first === '"' && $last === '"') || ($first === "'" && $last === "'")) {
+                return substr($value, 1, -1);
+            }
+        }
+
+        return $value;
     }
 
     private function removeFrontMatter(string $content): string

@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Memex\Tests\Service;
 
 use Memex\Service\PatternCompilerService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 final class PatternCompilerServiceTest extends TestCase
 {
@@ -34,7 +36,31 @@ MD;
         
         $result = $this->compiler->compile($markdown, 'test-guide.md');
         
-        $this->assertSame('"Custom Name"', $result['name']);
+        $this->assertSame('Custom Name', $result['name']);
+    }
+
+    #[DataProvider('stripQuotesProvider')]
+    public function testStripQuotes(string $value, string $expected): void
+    {
+        $method = new ReflectionMethod(PatternCompilerService::class, 'stripQuotes');
+        $method->setAccessible(true);
+
+        $result = $method->invoke($this->compiler, $value);
+
+        $this->assertSame($expected, $result);
+    }
+
+    public static function stripQuotesProvider(): array
+    {
+        return [
+            ['"Test"', 'Test'],
+            ["'Test'", 'Test'],
+            ['""', ''],
+            ["''", ''],
+            ['"Test', '"Test'],
+            ["Test'", "Test'"],
+            ['Test', 'Test'],
+        ];
     }
 
     public function testCompileExtractsFrontmatter(): void
@@ -51,7 +77,7 @@ MD;
         
         $result = $this->compiler->compile($markdown, 'test.md');
         
-        $this->assertSame('"Test Guide"', $result['metadata']['title']);
+        $this->assertSame('Test Guide', $result['metadata']['title']);
         $this->assertSame('guide', $result['metadata']['type']);
         $this->assertIsArray($result['metadata']['tags']);
         $this->assertCount(3, $result['metadata']['tags']);
