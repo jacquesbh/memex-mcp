@@ -1,7 +1,7 @@
 PHP_VERSION ?= $(shell cat .php-version)
 PHP_EXTENSIONS ?= mbstring,phar,posix,tokenizer,curl,filter,openssl,pdo,pdo_sqlite
 
-.PHONY: help install clean build local.install test test-mcp test-embed coverage
+.PHONY: help install clean check-arch build local.install test test-mcp test-embed coverage
 
 help: ## Display this help
 	@grep -E '^[a-zA-Z._-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
@@ -13,7 +13,43 @@ clean: ## Clean generated files (binary and vendor)
 	rm -f composer.lock
 	rm -rf vendor/
 
-build: install ## Build the MEMEX binary (installs dependencies first)
+check-arch: ## Verify architecture compatibility for build
+	@echo "🔍 Checking build architecture..."
+	@HOST_ARCH=$$(uname -m); \
+	PROC_ARCH=$$(arch); \
+	OS_NAME=$$(uname -s); \
+	ROSETTA=0; \
+	if [ "$$OS_NAME" = "Darwin" ]; then \
+		if sysctl -n sysctl.proc_translated >/dev/null 2>&1; then \
+			ROSETTA=$$(sysctl -n sysctl.proc_translated); \
+		fi; \
+	fi; \
+	if ! command -v symfony >/dev/null 2>&1; then \
+		echo "✗ symfony CLI not found in PATH"; \
+		exit 1; \
+	fi; \
+	SYMFONY_PHP_ARCH=$$(symfony php -r 'echo php_uname("m");' 2>/dev/null); \
+	if [ -z "$$SYMFONY_PHP_ARCH" ]; then \
+		echo "✗ Unable to determine architecture for symfony php"; \
+		exit 1; \
+	fi; \
+	echo "Host arch: $$HOST_ARCH"; \
+	echo "Process arch: $$PROC_ARCH"; \
+	if [ "$$OS_NAME" = "Darwin" ]; then \
+		echo "Rosetta translated: $$ROSETTA"; \
+	fi; \
+	echo "Symfony PHP arch: $$SYMFONY_PHP_ARCH"; \
+	if [ "$$OS_NAME" = "Darwin" ] && [ "$$ROSETTA" = "1" ]; then \
+		echo "✗ Terminal session is translated (Rosetta). Use a native arm64 shell."; \
+		exit 1; \
+	fi; \
+	if [ "$$HOST_ARCH" != "$$SYMFONY_PHP_ARCH" ]; then \
+		echo "✗ symfony php architecture ($$SYMFONY_PHP_ARCH) does not match host ($$HOST_ARCH)."; \
+		echo "  Hint: remove ~/.symfony5/php and re-run, or use an arm64 Symfony PHP runtime."; \
+		exit 1; \
+	fi
+
+build: check-arch install ## Build the MEMEX binary (installs dependencies first)
 	$(eval VERSION := $(shell grep "const MEMEX_VERSION" castor.php | sed "s/.*'\(.*\)'.*/\1/"))
 	symfony php vendor/jolicode/castor/bin/castor repack --app-name=memex --app-version=$(VERSION) --logo-file=.castor.logo.php
 	symfony php vendor/jolicode/castor/bin/castor compile memex.linux.phar --binary-path=memex --php-version=$(PHP_VERSION) --php-extensions=$(PHP_EXTENSIONS) --os=$(shell uname -s | tr '[:upper:]' '[:lower:]' | sed 's/darwin/macos/') --arch=$(shell uname -m | sed 's/arm64/aarch64/')
@@ -26,8 +62,8 @@ local.install: ## Install memex binary locally
 	$(eval CURRENT_MEMEX := $(shell which memex 2>/dev/null))
 	$(eval INSTALL_DIR := $(if $(CURRENT_MEMEX),$(dir $(CURRENT_MEMEX)),$(HOME)/bin/))
 	@mkdir -p $(INSTALL_DIR)
+	@chmod +x memex
 	@cp memex $(INSTALL_DIR)memex
-	@chmod +x $(INSTALL_DIR)memex
 	@echo "\n✅ MEMEX installed successfully at: $(INSTALL_DIR)memex"
 	@echo "Version: $$($(INSTALL_DIR)memex --version)"
 
@@ -59,4 +95,3 @@ vendor: composer.lock
 	symfony composer install
 
 composer.lock: composer.json
-

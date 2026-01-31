@@ -9,5 +9,6 @@ memex-old.phar
 .phpunit.cache
 memex-knowledge-base
 memex.json
-
+.box.json
+.main.php
 
