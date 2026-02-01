@@ -2,6 +2,96 @@
 
 declare(strict_types=1);
 
+namespace Memex\Service;
+
+final class CurlHandle
+{
+    public array $options = [];
+
+    public function __construct(public string $url)
+    {
+    }
+}
+
+final class CurlStub
+{
+    public static bool $enabled = false;
+    public static bool $execReturnsFalse = false;
+    public static int $httpCode = 200;
+    public static string $response = '';
+    public static string $error = '';
+
+    public static function reset(): void
+    {
+        self::$enabled = false;
+        self::$execReturnsFalse = false;
+        self::$httpCode = 200;
+        self::$response = '';
+        self::$error = '';
+    }
+}
+
+function curl_init(?string $url = null)
+{
+    if (!CurlStub::$enabled) {
+        return \curl_init($url);
+    }
+
+    return new CurlHandle($url ?? '');
+}
+
+function curl_setopt_array($ch, array $options): bool
+{
+    if (!CurlStub::$enabled || !$ch instanceof CurlHandle) {
+        return \curl_setopt_array($ch, $options);
+    }
+
+    $ch->options = $options;
+    return true;
+}
+
+function curl_exec($ch)
+{
+    if (!CurlStub::$enabled || !$ch instanceof CurlHandle) {
+        return \curl_exec($ch);
+    }
+
+    if (CurlStub::$execReturnsFalse) {
+        return false;
+    }
+
+    return CurlStub::$response;
+}
+
+function curl_getinfo($ch, int $option)
+{
+    if (!CurlStub::$enabled || !$ch instanceof CurlHandle) {
+        return \curl_getinfo($ch, $option);
+    }
+
+    if ($option === CURLINFO_HTTP_CODE) {
+        return CurlStub::$httpCode;
+    }
+
+    return null;
+}
+
+function curl_error($ch): string
+{
+    if (!CurlStub::$enabled || !$ch instanceof CurlHandle) {
+        return \curl_error($ch);
+    }
+
+    return CurlStub::$error;
+}
+
+function curl_close($ch): void
+{
+    if (!CurlStub::$enabled || !$ch instanceof CurlHandle) {
+        \curl_close($ch);
+    }
+}
+
 namespace Memex\Tests\Service;
 
 use Memex\Service\VectorService;
@@ -48,6 +138,50 @@ final class VectorServiceTest extends TestCase
         rmdir($dir);
     }
 
+    private function withoutWarnings(callable $callback): void
+    {
+        set_error_handler(static fn(): bool => true);
+
+        try {
+            $callback();
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    private function withCurlStub(array $config, callable $callback): void
+    {
+        \Memex\Service\CurlStub::reset();
+        \Memex\Service\CurlStub::$enabled = true;
+        if (array_key_exists('execReturnsFalse', $config)) {
+            \Memex\Service\CurlStub::$execReturnsFalse = $config['execReturnsFalse'];
+        }
+        if (array_key_exists('httpCode', $config)) {
+            \Memex\Service\CurlStub::$httpCode = $config['httpCode'];
+        }
+        if (array_key_exists('response', $config)) {
+            \Memex\Service\CurlStub::$response = $config['response'];
+        }
+        if (array_key_exists('error', $config)) {
+            \Memex\Service\CurlStub::$error = $config['error'];
+        }
+
+        try {
+            $callback();
+        } finally {
+            \Memex\Service\CurlStub::reset();
+        }
+    }
+
+    private function callEmbedWithOllama(string $text): array
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('embedWithOllama');
+        $method->setAccessible(true);
+
+        return $method->invoke($this->service, $text);
+    }
+
     public function testConstructorCreatesVarDirectory(): void
     {
         $this->assertDirectoryExists($this->tempDir . '/.vectors');
@@ -56,6 +190,40 @@ final class VectorServiceTest extends TestCase
     public function testConstructorCreatesDatabaseFile(): void
     {
         $this->assertFileExists($this->tempDir . '/.vectors/embeddings.db');
+    }
+
+    public function testConstructorThrowsWhenVectorsDirectoryCannotBeCreated(): void
+    {
+        $badPath = $this->tempDir . '/not-a-directory';
+        file_put_contents($badPath, 'file');
+
+        $vectorsDir = $badPath . '/.vectors';
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to create vectors directory: {$vectorsDir}");
+
+        $this->withoutWarnings(fn() => new VectorService($badPath, new TextSplitTransformer(700, 200), 512));
+    }
+
+    public function testConstructorThrowsWhenDatabaseCannotBeOpened(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('File permissions test skipped on Windows');
+        }
+
+        $kbPath = $this->tempDir . '/readonly-kb';
+        mkdir($kbPath, 0755, true);
+        $vectorsDir = $kbPath . '/.vectors';
+        mkdir($vectorsDir, 0555, true);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to open embeddings database: {$vectorsDir}/embeddings.db");
+
+        try {
+            new VectorService($kbPath, new TextSplitTransformer(700, 200), 512);
+        } finally {
+            chmod($vectorsDir, 0755);
+        }
     }
 
     public function testIndexStoresDocument(): void
@@ -726,5 +894,130 @@ final class VectorServiceTest extends TestCase
         $this->assertStringContainsString('日本語', $rawMetadata, 'Raw metadata JSON should contain japanese not escaped');
         $this->assertStringNotContainsString('\ud83c', $rawMetadata, 'Raw metadata should not contain escaped surrogate pairs');
         $this->assertStringNotContainsString('\u65e5', $rawMetadata, 'Raw metadata should not contain escaped unicode');
+    }
+
+    public function testEmbedWithOllamaThrowsOnCurlFailure(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to contact Ollama at http://localhost:11434. Curl error: connection refused');
+
+        $this->withCurlStub([
+            'execReturnsFalse' => true,
+            'error' => 'connection refused',
+        ], fn() => $this->callEmbedWithOllama('test'));
+    }
+
+    public function testEmbedWithOllamaThrowsOnNon200Response(): void
+    {
+        $response = json_encode(['error' => 'bad'], JSON_THROW_ON_ERROR);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Failed to get embeddings from Ollama. Make sure Ollama is running and model 'nomic-embed-text' is installed. Error: bad");
+
+        $this->withCurlStub([
+            'httpCode' => 500,
+            'response' => $response,
+        ], fn() => $this->callEmbedWithOllama('test'));
+    }
+
+    public function testEmbedWithOllamaThrowsOnInvalidJsonResponse(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid JSON response from Ollama: {invalid json}');
+
+        $this->withCurlStub([
+            'httpCode' => 200,
+            'response' => '{invalid json}',
+        ], fn() => $this->callEmbedWithOllama('test'));
+    }
+
+    public function testEmbedWithOllamaThrowsOnMissingEmbedding(): void
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid response from Ollama: {"embedding":[]}');
+
+        $this->withCurlStub([
+            'httpCode' => 200,
+            'response' => '{"embedding":[]}',
+        ], fn() => $this->callEmbedWithOllama('test'));
+    }
+
+    public function testExtractOllamaErrorReturnsTrimmedResponseForInvalidJson(): void
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('extractOllamaError');
+        $method->setAccessible(true);
+
+        $response = "  Service unavailable  ";
+
+        $this->assertSame('Service unavailable', $method->invoke($this->service, $response));
+    }
+
+    public function testExtractOllamaErrorReturnsTrimmedResponseForNonArrayJson(): void
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('extractOllamaError');
+        $method->setAccessible(true);
+
+        $response = '123';
+
+        $this->assertSame('123', $method->invoke($this->service, $response));
+    }
+
+    public function testExtractOllamaErrorReturnsTrimmedResponseWhenErrorMissing(): void
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('extractOllamaError');
+        $method->setAccessible(true);
+
+        $response = json_encode(['message' => 'oops'], JSON_THROW_ON_ERROR);
+
+        $this->assertSame($response, $method->invoke($this->service, $response));
+    }
+
+    public function testExtractOllamaErrorReturnsErrorString(): void
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('extractOllamaError');
+        $method->setAccessible(true);
+
+        $response = json_encode(['error' => 'oops'], JSON_THROW_ON_ERROR);
+
+        $this->assertSame('oops', $method->invoke($this->service, $response));
+    }
+
+    public function testExtractOllamaErrorReturnsEncodedErrorObject(): void
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('extractOllamaError');
+        $method->setAccessible(true);
+
+        $error = ['message' => 'oops', 'code' => 500];
+        $response = json_encode(['error' => $error], JSON_THROW_ON_ERROR);
+        $expected = json_encode($error, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $this->assertSame($expected, $method->invoke($this->service, $response));
+    }
+
+    public function testExtractOllamaErrorReturnsTrimmedResponseForUnencodableErrorObject(): void
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('extractOllamaError');
+        $method->setAccessible(true);
+
+        $response = '{"error":{"value":1e1000}}';
+
+        $this->assertSame($response, $method->invoke($this->service, $response));
+    }
+
+    public function testCosineSimilarityReturnsZeroWhenVectorHasZeroMagnitude(): void
+    {
+        $reflection = new \ReflectionClass($this->service);
+        $method = $reflection->getMethod('cosineSimilarity');
+        $method->setAccessible(true);
+
+        $score = $method->invoke($this->service, [0.0, 0.0], [1.0, 2.0]);
+
+        $this->assertSame(0.0, $score);
     }
 }

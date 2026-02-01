@@ -72,7 +72,7 @@ final class ContextServiceTest extends TestCase
     public function testDeleteThrowsOnNonExistingFile(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid file path');
+        $this->expectExceptionMessage('context not found: non-existing');
         
         $this->service->delete('non-existing');
     }

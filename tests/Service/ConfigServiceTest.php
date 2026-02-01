@@ -2,12 +2,70 @@
 
 declare(strict_types=1);
 
+namespace Memex\Service;
+
+final class CwdOverride
+{
+    public static bool $returnFalse = false;
+}
+
+function getcwd()
+{
+    if (CwdOverride::$returnFalse) {
+        return false;
+    }
+
+    return \getcwd();
+}
+
 namespace Memex\Tests\Service;
 
 use InvalidArgumentException;
 use Memex\Service\ConfigService;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
+
+final class FailingConfigStream
+{
+    public function url_stat(string $path, int $flags): array|false
+    {
+        $now = time();
+
+        return [
+            0 => 0,
+            1 => 0,
+            2 => 0100444,
+            3 => 0,
+            4 => 0,
+            5 => 0,
+            6 => 0,
+            7 => 0,
+            8 => $now,
+            9 => $now,
+            10 => $now,
+            11 => -1,
+            12 => -1,
+            'dev' => 0,
+            'ino' => 0,
+            'mode' => 0100444,
+            'nlink' => 1,
+            'uid' => 0,
+            'gid' => 0,
+            'rdev' => 0,
+            'size' => 0,
+            'atime' => $now,
+            'mtime' => $now,
+            'ctime' => $now,
+            'blksize' => -1,
+            'blocks' => -1,
+        ];
+    }
+
+    public function stream_open(string $path, string $mode, int $options, ?string &$opened_path): bool
+    {
+        return false;
+    }
+}
 
 final class ConfigServiceTest extends TestCase
 {
@@ -64,6 +122,17 @@ final class ConfigServiceTest extends TestCase
             }
         }
         rmdir($dir);
+    }
+
+    private function withoutWarnings(callable $callback): void
+    {
+        set_error_handler(static fn(): bool => true);
+
+        try {
+            $callback();
+        } finally {
+            restore_error_handler();
+        }
     }
 
     public function testGetKnowledgeBasePathReturnsNullWhenNoConfig(): void
@@ -188,6 +257,38 @@ final class ConfigServiceTest extends TestCase
         }
     }
 
+    public function testGetKnowledgeBasePathThrowsWhenConfigPathIsDirectory(): void
+    {
+        $wrapper = 'memexfail';
+        if (in_array($wrapper, stream_get_wrappers(), true)) {
+            stream_wrapper_unregister($wrapper);
+        }
+        stream_wrapper_register($wrapper, FailingConfigStream::class);
+
+        $previousHome = $_SERVER['HOME'] ?? null;
+        $previousEnv = getenv('HOME');
+        $fakeHome = $wrapper . '://home';
+        $_SERVER['HOME'] = $fakeHome;
+        putenv("HOME={$fakeHome}");
+
+        $service = new ConfigService();
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to read config file');
+
+        try {
+            $this->withoutWarnings(fn() => $service->getKnowledgeBasePath());
+        } finally {
+            stream_wrapper_unregister($wrapper);
+            if ($previousHome !== null) {
+                $_SERVER['HOME'] = $previousHome;
+            }
+            if ($previousEnv !== false) {
+                putenv("HOME={$previousEnv}");
+            }
+        }
+    }
+
     public function testGetKnowledgeBasePathAcceptsConfigWithoutKnowledgeBase(): void
     {
         $configPath = $this->tempDir . '/memex.json';
@@ -235,5 +336,18 @@ final class ConfigServiceTest extends TestCase
     {
         $service = new ConfigService();
         $this->assertNull($service->getKnowledgeBasePath());
+    }
+
+    public function testGetKnowledgeBasePathReturnsNullWhenCwdUnavailable(): void
+    {
+        $original = \Memex\Service\CwdOverride::$returnFalse;
+        \Memex\Service\CwdOverride::$returnFalse = true;
+
+        try {
+            $service = new ConfigService();
+            $this->assertNull($service->getKnowledgeBasePath());
+        } finally {
+            \Memex\Service\CwdOverride::$returnFalse = $original;
+        }
     }
 }

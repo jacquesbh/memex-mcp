@@ -149,15 +149,15 @@ final class GuideServiceTest extends TestCase
     public function testDeleteThrowsOnNonExistingFile(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid file path');
+        $this->expectExceptionMessage('guide not found: non-existing');
         
         $this->service->delete('non-existing');
     }
 
     public function testDeleteThrowsOnPathTraversal(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid slug format');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Security: Path traversal detected in slug');
         
         $this->service->delete('../../../etc/passwd');
     }

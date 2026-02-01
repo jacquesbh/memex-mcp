@@ -54,6 +54,17 @@ final class ContentServiceTest extends TestCase
         rmdir($dir);
     }
 
+    private function withoutWarnings(callable $callback): void
+    {
+        set_error_handler(static fn(): bool => true);
+
+        try {
+            $callback();
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     public function testGetReturnsItemByUuid(): void
     {
         $uuid = '550e8400-e29b-41d4-a716-446655440000';
@@ -222,6 +233,39 @@ final class ContentServiceTest extends TestCase
         $this->assertStringContainsString('updated:', $content);
     }
 
+    public function testWriteThrowsWhenContentDirCannotBeCreated(): void
+    {
+        $uuid = Uuid::v4()->toString();
+        $blockedPath = $this->tempDir . '/tests';
+        file_put_contents($blockedPath, 'blocked');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to create directory');
+
+        $this->withoutWarnings(fn() => $this->service->write($uuid, 'Title', 'Content'));
+    }
+
+    public function testWriteThrowsWhenFileCannotBeWritten(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('File permission test skipped on Windows');
+        }
+
+        $uuid = Uuid::v4()->toString();
+        $contentDir = $this->tempDir . '/tests';
+        mkdir($contentDir, 0755, true);
+        chmod($contentDir, 0555);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to write test file');
+
+        try {
+            $this->withoutWarnings(fn() => $this->service->write($uuid, 'Title', 'Content'));
+        } finally {
+            chmod($contentDir, 0755);
+        }
+    }
+
     public function testDeleteRemovesFileAndIndexes(): void
     {
         mkdir($this->tempDir . '/tests', 0755, true);
@@ -247,24 +291,99 @@ Content');
 
     public function testDeleteThrowsOnNonExistentFile(): void
     {
+        mkdir($this->tempDir . '/tests', 0755, true);
+
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid file path for test: missing');
+        $this->expectExceptionMessage('test not found: missing');
         
         $this->service->delete('missing');
     }
 
-    public function testDeleteThrowsWhenFileDoesNotExist(): void
+    public function testDeleteThrowsWhenContentDirectoryMissing(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid file path for test: nonexistent-file');
+        $this->expectExceptionMessage('Invalid file path for test: missing-dir');
+
+        $this->service->delete('missing-dir');
+    }
+
+    public function testDeleteThrowsWhenFileDoesNotExist(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Symlink test skipped on Windows');
+        }
+
+        $contentDir = $this->tempDir . '/tests';
+        mkdir($contentDir, 0755, true);
+
+        $outsideDir = $this->tempDir . '/outside';
+        mkdir($outsideDir, 0755, true);
+        $outsideFile = $outsideDir . '/outside.md';
+        file_put_contents($outsideFile, "---\ntitle: Outside\n---\nContent");
+
+        $symlinkPath = $contentDir . '/symlink.md';
+        if (!symlink($outsideFile, $symlinkPath)) {
+            $this->markTestSkipped('Unable to create symlink');
+        }
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid file path for test: symlink');
         
-        $this->service->delete('nonexistent-file');
+        $this->service->delete('symlink');
+    }
+
+    public function testDeleteThrowsWhenFileIsUnreadable(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('File permission test skipped on Windows');
+        }
+
+        $contentDir = $this->tempDir . '/tests';
+        mkdir($contentDir, 0755, true);
+        $filePath = $contentDir . '/unreadable.md';
+        file_put_contents($filePath, "---\ntitle: Unreadable\n---\nContent");
+        chmod($filePath, 0000);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to read test file');
+
+        try {
+            $this->withoutWarnings(fn() => $this->service->delete('unreadable'));
+        } finally {
+            chmod($filePath, 0644);
+        }
+    }
+
+    public function testDeleteThrowsWhenFileCannotBeDeleted(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('File permission test skipped on Windows');
+        }
+
+        $contentDir = $this->tempDir . '/tests';
+        mkdir($contentDir, 0755, true);
+        $filePath = $contentDir . '/locked.md';
+        file_put_contents($filePath, "---\ntitle: Locked\n---\nContent");
+
+        $this->compilerService->method('compile')
+            ->willReturn(['name' => 'Locked', 'metadata' => ['title' => 'Locked']]);
+
+        chmod($contentDir, 0555);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to delete test file');
+
+        try {
+            $this->withoutWarnings(fn() => $this->service->delete('locked'));
+        } finally {
+            chmod($contentDir, 0755);
+        }
     }
 
     public function testDeleteThrowsOnPathTraversal(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid slug format');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Security: Path traversal detected in slug');
         
         $this->service->delete('../../../etc/passwd');
     }
@@ -328,24 +447,24 @@ Content');
 
     public function testValidateSlugThrowsOnPathTraversal(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid slug format');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Security: Path traversal detected in slug');
         
         $this->service->delete('../parent');
     }
 
     public function testValidateSlugThrowsOnPathTraversalWithDoubleDots(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid slug format');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Security: Path traversal detected in slug');
         
         $this->service->delete('..');
     }
 
     public function testValidateSlugThrowsOnSlash(): void
     {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid slug format');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Security: Path traversal detected in slug');
         
         $this->service->delete('path/to/file');
     }
@@ -449,6 +568,48 @@ Content');
         $count = $this->service->reindexAll();
         
         $this->assertSame(0, $count);
+    }
+
+    public function testReindexAllThrowsWhenMissingUuidInFrontmatter(): void
+    {
+        mkdir($this->tempDir . '/tests', 0755, true);
+        file_put_contents($this->tempDir . '/tests/missing-uuid.md', "---\ntitle: Missing UUID\n---\nContent");
+
+        $this->compilerService->expects($this->once())
+            ->method('compile')
+            ->with($this->anything(), 'missing-uuid.md')
+            ->willReturn([
+                'metadata' => [],
+            ]);
+
+        $this->vectorService->expects($this->never())
+            ->method('index');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("missing 'uuid'");
+
+        $this->service->reindexAll();
+    }
+
+    public function testReindexAllThrowsWhenFileCannotBeRead(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('File permission test skipped on Windows');
+        }
+
+        mkdir($this->tempDir . '/tests', 0755, true);
+        $filePath = $this->tempDir . '/tests/unreadable.md';
+        file_put_contents($filePath, "---\nuuid: 550e8400-e29b-41d4-a716-446655440000\n---\nContent");
+        chmod($filePath, 0000);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Failed to read');
+
+        try {
+            $this->withoutWarnings(fn() => $this->service->reindexAll());
+        } finally {
+            chmod($filePath, 0644);
+        }
     }
 
     public function testReindexAllWithOnlyNewSkipsExisting(): void

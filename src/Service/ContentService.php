@@ -108,15 +108,18 @@ abstract class ContentService
         
         $filePath = $this->getFullContentDir() . '/' . $slug . '.md';
         
-        $realPath = realpath($filePath);
         $realDir = realpath($this->getFullContentDir());
-        
-        if (!$realPath || !$realDir || strpos($realPath, $realDir) !== 0) {
+        if (!$realDir) {
             throw new RuntimeException("Invalid file path for {$this->getContentType()}: {$slug}");
         }
         
-        if (!file_exists($realPath)) {
+        if (!file_exists($filePath)) {
             throw new RuntimeException("{$this->getContentType()} not found: {$slug}");
+        }
+
+        $realPath = realpath($filePath);
+        if (!$realPath || strpos($realPath, $realDir) !== 0) {
+            throw new RuntimeException("Invalid file path for {$this->getContentType()}: {$slug}");
         }
         
         $content = file_get_contents($realPath);
@@ -152,10 +155,11 @@ abstract class ContentService
         
         $count = 0;
         foreach ($finder as $file) {
-            $content = $file->getContents();
-            if ($content === false) {
+            try {
+                $content = $file->getContents();
+            } catch (RuntimeException $error) {
                 $path = $file->getRealPath() ?: $file->getPathname();
-                throw new RuntimeException("Failed to read {$path}");
+                throw new RuntimeException("Failed to read {$path}", 0, $error);
             }
             $compiled = $this->compiler->compile($content, $file->getFilename());
             
@@ -211,12 +215,12 @@ abstract class ContentService
 
     protected function validateSlug(string $slug): void
     {
-        if (!preg_match('/^[a-z0-9\-]+$/', $slug)) {
-            throw new InvalidArgumentException("Invalid slug format");
-        }
-        
         if (strpos($slug, '..') !== false || strpos($slug, '/') !== false) {
             throw new RuntimeException("Security: Path traversal detected in slug");
+        }
+
+        if (!preg_match('/^[a-z0-9\-]+$/', $slug)) {
+            throw new InvalidArgumentException("Invalid slug format");
         }
     }
 

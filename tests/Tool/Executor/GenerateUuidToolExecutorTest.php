@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Memex\Tests\Tool\Executor;
 
 use Memex\Tool\Executor\GenerateUuidToolExecutor;
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 
 final class GenerateUuidToolExecutorTest extends TestCase
@@ -37,5 +39,27 @@ final class GenerateUuidToolExecutorTest extends TestCase
         $this->assertTrue($result1['success']);
         $this->assertTrue($result2['success']);
         $this->assertNotSame($result1['uuid'], $result2['uuid'], 'Generated UUIDs should be unique');
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testExecuteReturnsErrorResponseWhenUuidGenerationFails(): void
+    {
+        if (class_exists('Symfony\\Component\\Uid\\Uuid', false)) {
+            $this->markTestSkipped('Symfony Uuid already loaded.');
+        }
+
+        eval('namespace Symfony\\Component\\Uid; final class Uuid { public static function v4(): self { throw new \\RuntimeException("boom"); } }');
+
+        $executor = new GenerateUuidToolExecutor();
+
+        $result = $executor->execute();
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(\RuntimeException::class, $result['error']['type']);
+        $this->assertSame('boom', $result['error']['message']);
+        $this->assertSame(['tool' => 'generate_uuid'], $result['error']['context']);
+        $this->assertSame('runtime', $result['error']['details']['category']);
+        $this->assertSame(0, $result['error']['details']['code']);
     }
 }
