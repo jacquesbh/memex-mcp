@@ -13,7 +13,10 @@ echo -e "${YELLOW}🧪 MEMEX MCP Direct JSON-RPC Integration Tests${NC}\n"
 MEMEX_BIN="./memex"
 USE_CASTOR=false
 
-if [[ ! -x "$MEMEX_BIN" ]]; then
+if [[ "${MEMEX_TEST_SOURCE:-false}" == "true" ]]; then
+    echo -e "${YELLOW}⚠ Testing current source with castor${NC}"
+    USE_CASTOR=true
+elif [[ ! -x "$MEMEX_BIN" ]]; then
     echo -e "${YELLOW}⚠ Binary not found, using castor instead${NC}"
     USE_CASTOR=true
 else
@@ -49,7 +52,7 @@ fail() {
     exit 1
 }
 
-call_tool() {
+call_tool_raw() {
     local tool_name="$1"
     local arguments="$2"
     
@@ -69,7 +72,11 @@ call_tool() {
     (
         echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
         echo "$payload"
-    ) | $MEMEX_BIN server --kb="$TEST_KB" 2>&1 | tail -1 | jq -r '.result.content[0].text // empty' 2>/dev/null
+    ) | $MEMEX_BIN server --kb="$TEST_KB" 2>&1 | tail -1
+}
+
+call_tool() {
+    call_tool_raw "$1" "$2" | jq -r '.result.content[0].text // empty' 2>/dev/null
 }
 
 echo -e "\n${YELLOW}Test 1: List guides (should be empty)${NC}"
@@ -120,11 +127,20 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 3d: Delete large guide${NC}"
-output=$(call_tool "delete_guide" '{"slug":"large-guide"}')
-if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
-    pass "delete_guide removed large-guide"
+delete_large_args=$(jq -n --arg uuid "$LARGE_UUID" '{uuid: $uuid}')
+output=$(call_tool "delete_guide" "$delete_large_args")
+if echo "$output" | jq -e --arg uuid "$LARGE_UUID" '.success == true and .uuid == $uuid and .slug == "large-guide"' >/dev/null 2>&1; then
+    pass "delete_guide removed large-guide by UUID"
 else
     fail "delete_guide large guide failed" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 3e: Deleted large guide is absent${NC}"
+output=$(call_tool "list_guides" "{}")
+if ! echo "$output" | grep -q 'large-guide'; then
+    pass "large-guide disappeared from list_guides"
+else
+    fail "large-guide should be absent after deletion" "$output"
 fi
 
 echo -e "\n${YELLOW}Test 4: List guides (should contain test-guide)${NC}"
@@ -281,38 +297,82 @@ else
 fi
 
 echo -e "\n${YELLOW}Test 10i: Delete emoji guide${NC}"
-output=$(call_tool "delete_guide" '{"slug":"emoji-test-guide"}')
-if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
-    pass "delete_guide removed emoji-test-guide"
+delete_emoji_args=$(jq -n --arg uuid "$EMOJI_GUIDE_UUID" '{uuid: $uuid}')
+output=$(call_tool "delete_guide" "$delete_emoji_args")
+if echo "$output" | jq -e --arg uuid "$EMOJI_GUIDE_UUID" '.success == true and .uuid == $uuid and .slug == "emoji-test-guide"' >/dev/null 2>&1; then
+    pass "delete_guide removed emoji-test-guide by UUID"
 else
     fail "delete_guide emoji guide failed" "$output"
 fi
 
-echo -e "\n${YELLOW}Test 10j: Delete emoji context${NC}"
+echo -e "\n${YELLOW}Test 10j: Deleted emoji guide cannot be retrieved${NC}"
+output=$(call_tool "get_guide" "$get_emoji_args")
+if echo "$output" | jq -e '.success == false and .error.context.tool == "get_guide"' >/dev/null 2>&1; then
+    pass "emoji-test-guide disappeared after deletion"
+else
+    fail "emoji-test-guide should not be retrievable after deletion" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 10k: Delete emoji context by slug (unchanged contract)${NC}"
 output=$(call_tool "delete_context" '{"slug":"emoji-bot-context"}')
-if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
-    pass "delete_context removed emoji-bot-context"
+if echo "$output" | jq -e '.success == true and .slug == "emoji-bot-context"' >/dev/null 2>&1; then
+    pass "delete_context removed emoji-bot-context by slug"
 else
     fail "delete_context emoji context failed" "$output"
 fi
 
-echo -e "\n${YELLOW}Test 11: Delete guide${NC}"
-output=$(call_tool "delete_guide" '{"slug":"test-guide"}')
-if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
-    pass "delete_guide removed test-guide"
+echo -e "\n${YELLOW}Test 11: Delete guide by created UUID${NC}"
+delete_guide_args=$(jq -n --arg uuid "$GUIDE_UUID" '{uuid: $uuid}')
+output=$(call_tool "delete_guide" "$delete_guide_args")
+if echo "$output" | jq -e --arg uuid "$GUIDE_UUID" '.success == true and .uuid == $uuid and .slug == "test-guide"' >/dev/null 2>&1; then
+    pass "delete_guide removed test-guide by UUID"
 else
     fail "delete_guide failed" "$output"
 fi
 
-echo -e "\n${YELLOW}Test 12: Delete context${NC}"
+echo -e "\n${YELLOW}Test 12: Deleted guide cannot be retrieved${NC}"
+output=$(call_tool "get_guide" "$get_args")
+if echo "$output" | jq -e '.success == false and .error.context.tool == "get_guide"' >/dev/null 2>&1; then
+    pass "test-guide disappeared after deletion"
+else
+    fail "test-guide should not be retrievable after deletion" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 13: Delete guide rejects an invalid UUID${NC}"
+output=$(call_tool "delete_guide" '{"uuid":"not-a-uuid"}')
+if echo "$output" | jq -e '.success == false and .error.context.tool == "delete_guide" and .error.details.category == "validation"' >/dev/null 2>&1; then
+    pass "delete_guide rejects invalid UUID"
+else
+    fail "delete_guide should reject invalid UUID" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 14: Delete guide reports an absent UUID${NC}"
+ABSENT_GUIDE_UUID="550e8400-e29b-41d4-a716-446655440999"
+absent_guide_args=$(jq -n --arg uuid "$ABSENT_GUIDE_UUID" '{uuid: $uuid}')
+output=$(call_tool "delete_guide" "$absent_guide_args")
+if echo "$output" | jq -e --arg uuid "$ABSENT_GUIDE_UUID" '.success == false and .error.context.tool == "delete_guide" and .error.details.category == "runtime" and (.error.message | contains($uuid))' >/dev/null 2>&1; then
+    pass "delete_guide reports absent UUID"
+else
+    fail "delete_guide should report absent UUID" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 15: Delete guide requires UUID argument${NC}"
+output=$(call_tool_raw "delete_guide" "{}")
+if echo "$output" | jq -e '.error.code == -32602 and (.error.message | contains("uuid"))' >/dev/null 2>&1; then
+    pass "delete_guide requires uuid"
+else
+    fail "delete_guide should require uuid" "$output"
+fi
+
+echo -e "\n${YELLOW}Test 16: Delete context by slug (unchanged contract)${NC}"
 output=$(call_tool "delete_context" '{"slug":"test-context"}')
-if echo "$output" | tr -d '\n ' | grep -q '"success":true'; then
-    pass "delete_context removed test-context"
+if echo "$output" | jq -e '.success == true and .slug == "test-context"' >/dev/null 2>&1; then
+    pass "delete_context removed test-context by slug"
 else
     fail "delete_context failed" "$output"
 fi
 
-echo -e "\n${YELLOW}Test 13: List guides (should be empty again)${NC}"
+echo -e "\n${YELLOW}Test 17: List guides (should be empty again)${NC}"
 output=$(call_tool "list_guides" "{}")
 if echo "$output" | tr -d '\n ' | grep -q '"total":0'; then
     pass "list_guides empty after cleanup"
@@ -320,7 +380,7 @@ else
     fail "list_guides should be empty" "$output"
 fi
 
-echo -e "\n${YELLOW}Test 14: List contexts (should be empty again)${NC}"
+echo -e "\n${YELLOW}Test 18: List contexts (should be empty again)${NC}"
 output=$(call_tool "list_contexts" "{}")
 if echo "$output" | tr -d '\n ' | grep -q '"total":0'; then
     pass "list_contexts empty after cleanup"
@@ -330,5 +390,5 @@ fi
 
 rm -rf "$TEST_KB"
 
-echo -e "\n${GREEN}✅ All 24 MCP integration tests passed!${NC}"
+echo -e "\n${GREEN}✅ All MCP integration tests passed!${NC}"
 exit 0

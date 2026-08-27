@@ -11,10 +11,19 @@ use RuntimeException;
 
 final class DeleteGuideToolExecutorTest extends TestCase
 {
+    public function testExecuteParameterIsUuid(): void
+    {
+        $parameter = (new \ReflectionMethod(DeleteGuideToolExecutor::class, 'execute'))->getParameters()[0];
+
+        $this->assertSame('uuid', $parameter->getName());
+    }
+
     public function testExecuteDeletesGuide(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
         $deleteResult = [
             'success' => true,
+            'uuid' => $uuid,
             'slug' => 'test-guide',
             'title' => 'Test Guide',
             'type' => 'guide',
@@ -22,16 +31,17 @@ final class DeleteGuideToolExecutorTest extends TestCase
         
         $service = $this->createMock(GuideService::class);
         $service->expects($this->once())
-            ->method('delete')
-            ->with('test-guide')
+            ->method('deleteByUuid')
+            ->with($uuid)
             ->willReturn($deleteResult);
         
         $executor = new DeleteGuideToolExecutor($service);
         
-        $result = $executor->execute('test-guide');
+        $result = $executor->execute($uuid);
         
         $this->assertIsArray($result);
         $this->assertTrue($result['success']);
+        $this->assertSame($uuid, $result['uuid']);
         $this->assertSame('test-guide', $result['slug']);
         $this->assertSame('guide', $result['type']);
     }
@@ -40,12 +50,12 @@ final class DeleteGuideToolExecutorTest extends TestCase
     {
         $service = $this->createMock(GuideService::class);
         $service->expects($this->once())
-            ->method('delete')
+            ->method('deleteByUuid')
             ->willThrowException(new RuntimeException('Delete failed'));
 
         $executor = new DeleteGuideToolExecutor($service);
 
-        $result = $executor->execute('missing-guide');
+        $result = $executor->execute('550e8400-e29b-41d4-a716-446655440999');
 
         $this->assertIsArray($result);
         $this->assertFalse($result['success']);

@@ -12,13 +12,14 @@ final readonly class DeleteGuideToolExecutor
         private GuideService $guideService
     ) {}
 
-    public function execute(string $slug): array
+    public function execute(string $uuid): array
     {
         try {
-            $result = $this->guideService->delete($slug);
+            $result = $this->guideService->deleteByUuid($uuid);
 
             return [
                 'success' => true,
+                'uuid' => $result['uuid'],
                 'title' => $result['title'],
                 'slug' => $result['slug'],
                 'type' => $result['type'],

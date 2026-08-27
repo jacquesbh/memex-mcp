@@ -17,6 +17,7 @@ use Mcp\Server\Transport\StdioTransport;
 use Humbug\SelfUpdate\Updater;
 
 use function Castor\io;
+use function Castor\input;
 
 require_once __DIR__ . '/vendor/autoload.php';
 
@@ -96,6 +97,59 @@ function init(
     } catch (KnowledgeBaseNotDirectoryException | KnowledgeBaseNotReadableException $e) {
         io()->error($e->getMessage());
         io()->note("Cannot initialize at path: {$e->realPath}");
+    }
+}
+
+#[AsTask(description: 'Delete a guide by UUID')]
+function deleteGuide(
+    string $uuid,
+    #[AsOption(name: 'force', description: 'Delete without confirmation')]
+    bool $force = false,
+    #[AsOption(name: 'kb', description: 'Path to knowledge base directory')]
+    ?string $knowledgeBase = null
+): int {
+    try {
+        $kbPath = ApplicationHelper::resolveKnowledgeBasePath($knowledgeBase);
+
+        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $uuid)) {
+            throw new \InvalidArgumentException('Invalid UUID v4 format');
+        }
+
+        if (!$force) {
+            if (!input()->isInteractive()) {
+                io()->error('Cannot delete a guide in non-interactive mode without --force.');
+
+                return 1;
+            }
+
+            $confirmed = io()->confirm(
+                "Delete guide with UUID {$uuid} from knowledge base {$kbPath}?",
+                false
+            );
+
+            if (!$confirmed) {
+                io()->note('Deletion cancelled.');
+
+                return 0;
+            }
+        }
+
+        $container = ServerHelper::buildContainer($kbPath);
+        $guideService = $container->get(GuideService::class);
+        $result = $guideService->deleteByUuid($uuid);
+
+        io()->success('Guide deleted.');
+        io()->listing([
+            "UUID: {$result['uuid']}",
+            "Title: {$result['title']}",
+            "Slug: {$result['slug']}",
+        ]);
+
+        return 0;
+    } catch (\Throwable $error) {
+        io()->error("Unable to delete guide: {$error->getMessage()}");
+
+        return 1;
     }
 }
 

@@ -138,6 +138,18 @@ All configuration options (OpenCode, custom KB, etc.): [USAGE.md](USAGE.md)
 | **Contexts** | `get_context`, `list_contexts`, `write_context`, `delete_context` |
 | **Utility** | `generate_uuid`, `search_knowledge_base` |
 
+### Delete a guide
+
+Delete a guide by UUID from the CLI:
+
+```bash
+castor delete-guide <uuid> [--force] [--kb=/path]
+```
+
+The command asks for confirmation by default. Use `--force` for scripts and other non-interactive environments. It fails with a clear error when the UUID is missing, is not a valid UUID v4, or does not match a guide.
+
+The MCP tool `delete_guide(uuid)` deletes immediately without confirmation. A successful response includes `uuid`, `slug`, `title`, and `type`. Context deletion is unchanged: use `delete_context(slug)`.
+
 
 
 ## Knowledge Base Structure
@@ -150,6 +162,8 @@ knowledge-base/
 ```
 
 Files use Markdown with YAML frontmatter. Details: [USAGE.md](USAGE.md)
+
+The vector index keeps guides and contexts separate, so they can share a slug. After upgrading a knowledge base that previously had such a collision, run `castor embed --force` to rebuild the index if needed.
 
 ## Building from Source
 

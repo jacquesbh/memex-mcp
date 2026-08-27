@@ -17,7 +17,7 @@ final class DeleteContextToolExecutorTest extends TestCase
             'success' => true,
             'slug' => 'test-context',
             'title' => 'Test Context',
-            'type' => 'guide',
+            'type' => 'context',
         ];
         
         $service = $this->createMock(ContextService::class);
@@ -33,7 +33,7 @@ final class DeleteContextToolExecutorTest extends TestCase
         $this->assertIsArray($result);
         $this->assertTrue($result['success']);
         $this->assertSame('test-context', $result['slug']);
-        $this->assertSame('guide', $result['type']);
+        $this->assertSame('context', $result['type']);
     }
 
     public function testExecuteReturnsStructuredError(): void

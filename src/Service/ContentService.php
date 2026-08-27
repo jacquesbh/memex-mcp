@@ -12,8 +12,8 @@ abstract class ContentService
 {
     public function __construct(
         private readonly string $knowledgeBasePath,
-        private readonly PatternCompilerService $compiler,
-        private readonly VectorService $vectorService
+        protected readonly PatternCompilerService $compiler,
+        protected readonly VectorService $vectorService
     ) {}
 
     abstract protected function getContentType(): string;
@@ -105,20 +105,29 @@ abstract class ContentService
     public function delete(string $slug): array
     {
         $this->validateSlug($slug);
-        
-        $filePath = $this->getFullContentDir() . '/' . $slug . '.md';
-        
-        $realDir = realpath($this->getFullContentDir());
+
+        $contentDir = $this->getFullContentDir();
+        if (is_link($contentDir)) {
+            throw new RuntimeException("Invalid {$this->getContentType()} directory: symlinks are not allowed");
+        }
+
+        $filePath = $contentDir . '/' . $slug . '.md';
+
+        $realDir = realpath($contentDir);
         if (!$realDir) {
             throw new RuntimeException("Invalid file path for {$this->getContentType()}: {$slug}");
         }
         
+        if (is_link($filePath)) {
+            throw new RuntimeException("Invalid file path for {$this->getContentType()}: {$slug}");
+        }
+
         if (!file_exists($filePath)) {
             throw new RuntimeException("{$this->getContentType()} not found: {$slug}");
         }
 
         $realPath = realpath($filePath);
-        if (!$realPath || strpos($realPath, $realDir) !== 0) {
+        if (!$realPath || !str_starts_with($realPath, $realDir . DIRECTORY_SEPARATOR)) {
             throw new RuntimeException("Invalid file path for {$this->getContentType()}: {$slug}");
         }
         
@@ -128,11 +137,11 @@ abstract class ContentService
         }
         $metadata = $this->compiler->compile($content, basename($realPath));
 
-        if (!unlink($realPath)) {
-            throw new RuntimeException("Failed to delete {$this->getContentType()} file: {$realPath}");
+        if (!unlink($filePath)) {
+            throw new RuntimeException("Failed to delete {$this->getContentType()} file: {$filePath}");
         }
         
-        $this->vectorService->delete($slug);
+        $this->vectorService->delete($slug, $this->getContentType());
         
         return [
             'success' => true,

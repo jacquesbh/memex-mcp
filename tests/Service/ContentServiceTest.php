@@ -279,7 +279,7 @@ Content');
         
         $this->vectorService->expects($this->once())
             ->method('delete')
-            ->with('to-delete');
+            ->with('to-delete', 'test');
         
         $result = $this->service->delete('to-delete');
         
@@ -307,7 +307,7 @@ Content');
         $this->service->delete('missing-dir');
     }
 
-    public function testDeleteThrowsWhenFileDoesNotExist(): void
+    public function testDeleteRejectsSymlinkWhoseTargetSharesContentDirectoryPrefix(): void
     {
         if (PHP_OS_FAMILY === 'Windows') {
             $this->markTestSkipped('Symlink test skipped on Windows');
@@ -316,7 +316,7 @@ Content');
         $contentDir = $this->tempDir . '/tests';
         mkdir($contentDir, 0755, true);
 
-        $outsideDir = $this->tempDir . '/outside';
+        $outsideDir = $this->tempDir . '/tests-outside';
         mkdir($outsideDir, 0755, true);
         $outsideFile = $outsideDir . '/outside.md';
         file_put_contents($outsideFile, "---\ntitle: Outside\n---\nContent");
@@ -326,10 +326,48 @@ Content');
             $this->markTestSkipped('Unable to create symlink');
         }
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid file path for test: symlink');
-        
-        $this->service->delete('symlink');
+        try {
+            $this->service->delete('symlink');
+            $this->fail('A symlink must not be deleted as content.');
+        } catch (RuntimeException $error) {
+            $this->assertSame('Invalid file path for test: symlink', $error->getMessage());
+        }
+
+        $this->assertFileExists($outsideFile);
+        $this->assertTrue(is_link($symlinkPath));
+    }
+
+    public function testDeleteRejectsSymlinkedContentDirectoryWithoutTouchingTarget(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Symlink test skipped on Windows');
+        }
+
+        $outsideDir = sys_get_temp_dir() . '/memex-content-outside-' . uniqid();
+        mkdir($outsideDir, 0755, true);
+        $outsideFile = $outsideDir . '/protected.md';
+        file_put_contents($outsideFile, "---\ntitle: Protected\n---\nContent");
+        $contentDir = $this->tempDir . '/tests';
+
+        if (!symlink($outsideDir, $contentDir)) {
+            $this->removeDirectory($outsideDir);
+            $this->markTestSkipped('Unable to create symlink');
+        }
+
+        $this->vectorService->expects($this->never())->method('delete');
+        $this->compilerService->expects($this->never())->method('compile');
+
+        try {
+            $this->service->delete('protected');
+            $this->fail('A symlinked content directory must not be followed.');
+        } catch (RuntimeException $error) {
+            $this->assertSame('Invalid test directory: symlinks are not allowed', $error->getMessage());
+        } finally {
+            unlink($contentDir);
+        }
+
+        $this->assertFileExists($outsideFile);
+        $this->removeDirectory($outsideDir);
     }
 
     public function testDeleteThrowsWhenFileIsUnreadable(): void

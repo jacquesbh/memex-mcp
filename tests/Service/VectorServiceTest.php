@@ -192,6 +192,72 @@ final class VectorServiceTest extends TestCase
         $this->assertFileExists($this->tempDir . '/.vectors/embeddings.db');
     }
 
+    public function testConstructorMigratesLegacyDatabaseWithoutOllama(): void
+    {
+        $knowledgeBasePath = $this->tempDir . '/legacy';
+        $vectorsPath = $knowledgeBasePath . '/.vectors';
+        mkdir($vectorsPath, 0755, true);
+        $db = new \PDO("sqlite:{$vectorsPath}/embeddings.db");
+        $db->exec('
+            CREATE TABLE embeddings (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                uuid TEXT,
+                name TEXT NOT NULL,
+                title TEXT,
+                tags TEXT,
+                content TEXT NOT NULL,
+                vector BLOB NOT NULL,
+                metadata TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT,
+                parent_id TEXT,
+                chunk_index INTEGER
+            )
+        ');
+        $insert = $db->prepare('
+            INSERT INTO embeddings
+                (id, type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ');
+        $vector = pack('f*', 0.1, 0.2);
+        $insert->execute([
+            'legacy-slug', 'context', 'legacy-slug', '550e8400-e29b-41d4-a716-446655440012', 'Legacy', 'Legacy', '[]',
+            'Parent', $vector, '{}', '2025-01-01', null, null, null,
+        ]);
+        $insert->execute([
+            'legacy-slug_section_0', 'section', 'legacy-slug', null, 'Legacy', 'Section', '[]',
+            'Section', $vector, '{}', '2025-01-01', null, null, null,
+        ]);
+        $insert->execute([
+            'legacy-slug_section_0_chunk_0', 'chunk', 'legacy-slug', null, 'Legacy', 'Section', '[]',
+            'Chunk', $vector, '{}', '2025-01-01', null, 'legacy-slug_section_0', 0,
+        ]);
+        $db = null;
+
+        new VectorService($knowledgeBasePath, new TextSplitTransformer(700, 200), 512);
+
+        $migrated = new \PDO("sqlite:{$vectorsPath}/embeddings.db");
+        $this->assertSame(1, (int) $migrated->query('PRAGMA user_version')->fetchColumn());
+        $columns = $migrated->query('PRAGMA table_info(embeddings)')->fetchAll(\PDO::FETCH_ASSOC);
+        $this->assertContains('content_type', array_column($columns, 'name'));
+        $rows = $migrated->query('SELECT id, type, content_type, parent_id FROM embeddings ORDER BY type')->fetchAll(\PDO::FETCH_ASSOC);
+        $this->assertCount(3, $rows);
+
+        foreach ($rows as $row) {
+            $this->assertSame('context', $row['content_type']);
+            $this->assertStringStartsWith('context:', $row['id']);
+        }
+
+        $chunk = array_values(array_filter($rows, static fn(array $row): bool => $row['type'] === 'chunk'))[0];
+        $this->assertSame('context:legacy-slug_section_0', $chunk['parent_id']);
+        $indexes = $migrated->query('PRAGMA index_list(embeddings)')->fetchAll(\PDO::FETCH_ASSOC);
+        $indexNames = array_column($indexes, 'name');
+        $this->assertContains('idx_embeddings_content_type_slug', $indexNames);
+        $this->assertContains('idx_embeddings_parent_id', $indexNames);
+    }
+
     public function testConstructorThrowsWhenVectorsDirectoryCannotBeCreated(): void
     {
         $badPath = $this->tempDir . '/not-a-directory';
@@ -498,6 +564,36 @@ final class VectorServiceTest extends TestCase
         $this->service->delete('non-existent');
         
         $this->assertTrue(true);
+    }
+
+    public function testSameSlugCanCoexistAcrossTypesAndTypedDeleteKeepsOtherType(): void
+    {
+        $this->withCurlStub(['response' => '{"embedding":[0.1,0.2]}'], function (): void {
+            $this->service->index('shared-slug', '550e8400-e29b-41d4-a716-446655440010', [
+                'name' => 'Shared Guide',
+                'content' => 'Guide content',
+                'sections' => [],
+                'metadata' => ['type' => 'guide', 'title' => 'Shared Guide', 'tags' => []],
+            ]);
+            $this->service->index('shared-slug', '550e8400-e29b-41d4-a716-446655440011', [
+                'name' => 'Shared Context',
+                'content' => 'Context content',
+                'sections' => [],
+                'metadata' => ['type' => 'context', 'title' => 'Shared Context', 'tags' => []],
+            ]);
+
+            $beforeDelete = $this->service->listAll();
+            $this->assertCount(2, $beforeDelete);
+            $this->assertEqualsCanonicalizing(['guide', 'context'], array_column($beforeDelete, 'type'));
+
+            $this->service->delete('shared-slug', 'guide');
+
+            $afterDelete = $this->service->listAll();
+            $this->assertCount(1, $afterDelete);
+            $this->assertSame('context', $afterDelete[0]['type']);
+            $this->assertSame('shared-slug', $afterDelete[0]['slug']);
+            $this->assertSame('550e8400-e29b-41d4-a716-446655440011', $afterDelete[0]['uuid']);
+        });
     }
 
     public function testIndexUpdatesExistingDocument(): void

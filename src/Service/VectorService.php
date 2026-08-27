@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Memex\Service;
 
+use InvalidArgumentException;
 use PDO;
 use RuntimeException;
 use Symfony\AI\Store\Document\Metadata;
@@ -13,6 +14,8 @@ use Symfony\Component\Uid\Uuid;
 
 class VectorService
 {
+    private const SCHEMA_VERSION = 1;
+
     private PDO $db;
     private string $ollamaUrl = 'http://localhost:11434';
     private string $embeddingModel = 'nomic-embed-text';
@@ -45,10 +48,51 @@ class VectorService
 
     private function initialize(): void
     {
-        $this->db->exec('
+        $version = (int) $this->db->query('PRAGMA user_version')->fetchColumn();
+
+        if ($version > self::SCHEMA_VERSION) {
+            throw new RuntimeException("Unsupported embeddings database schema version: {$version}");
+        }
+
+        if ($version === self::SCHEMA_VERSION) {
+            return;
+        }
+
+        $this->db->beginTransaction();
+
+        try {
+            if ($this->tableExists('embeddings')) {
+                $this->migrateLegacySchema();
+            } else {
+                $this->createSchema();
+            }
+
+            $this->db->exec('PRAGMA user_version = ' . self::SCHEMA_VERSION);
+            $this->db->commit();
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $error;
+        }
+    }
+
+    private function tableExists(string $table): bool
+    {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?");
+        $stmt->execute([$table]);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    private function createSchema(): void
+    {
+        $this->db->exec("
             CREATE TABLE IF NOT EXISTS embeddings (
                 id TEXT PRIMARY KEY,
                 type TEXT NOT NULL,
+                content_type TEXT NOT NULL,
                 slug TEXT NOT NULL,
                 uuid TEXT,
                 name TEXT NOT NULL,
@@ -61,22 +105,104 @@ class VectorService
                 updated_at TEXT,
                 parent_id TEXT,
                 chunk_index INTEGER
-            );
-            
-            CREATE INDEX IF NOT EXISTS idx_type ON embeddings(type);
-            CREATE INDEX IF NOT EXISTS idx_slug ON embeddings(slug);
-            CREATE INDEX IF NOT EXISTS idx_uuid ON embeddings(uuid);
-            CREATE INDEX IF NOT EXISTS idx_parent_id ON embeddings(parent_id);
+            )
+        ");
+
+        $this->createIndexes();
+    }
+
+    private function createIndexes(): void
+    {
+        $this->db->exec('
+            CREATE INDEX IF NOT EXISTS idx_embeddings_content_type_type ON embeddings(content_type, type);
+            CREATE INDEX IF NOT EXISTS idx_embeddings_content_type_slug ON embeddings(content_type, slug);
+            CREATE INDEX IF NOT EXISTS idx_embeddings_uuid ON embeddings(uuid);
+            CREATE INDEX IF NOT EXISTS idx_embeddings_parent_id ON embeddings(parent_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_embeddings_parent ON embeddings(content_type, slug)
+                WHERE type IN ("guide", "context");
         ');
+    }
+
+    private function migrateLegacySchema(): void
+    {
+        $this->db->exec('
+            CREATE TABLE embeddings_migrated (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                uuid TEXT,
+                name TEXT NOT NULL,
+                title TEXT,
+                tags TEXT,
+                content TEXT NOT NULL,
+                vector BLOB NOT NULL,
+                metadata TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT,
+                parent_id TEXT,
+                chunk_index INTEGER
+            )
+        ');
+
+        $contentType = '
+            CASE
+                WHEN legacy.type IN ("guide", "context") THEN legacy.type
+                ELSE COALESCE(
+                    (
+                        SELECT parent.type
+                        FROM embeddings parent
+                        WHERE parent.slug = legacy.slug
+                            AND parent.type IN ("guide", "context")
+                        LIMIT 1
+                    ),
+                    "guide"
+                )
+            END
+        ';
+
+        $this->db->exec("
+            INSERT INTO embeddings_migrated
+                (id, type, content_type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
+            SELECT
+                ({$contentType}) || ':' || legacy.id,
+                legacy.type,
+                {$contentType},
+                legacy.slug,
+                legacy.uuid,
+                legacy.name,
+                legacy.title,
+                legacy.tags,
+                legacy.content,
+                legacy.vector,
+                legacy.metadata,
+                legacy.created_at,
+                legacy.updated_at,
+                CASE
+                    WHEN legacy.parent_id IS NULL THEN NULL
+                    ELSE ({$contentType}) || ':' || legacy.parent_id
+                END,
+                legacy.chunk_index
+            FROM embeddings legacy
+        ");
+
+        $this->db->exec('DROP TABLE embeddings');
+        $this->db->exec('ALTER TABLE embeddings_migrated RENAME TO embeddings');
+        $this->createIndexes();
     }
 
     public function index(string $slug, string $uuid, array $compiled): void
     {
+        $contentType = $compiled['metadata']['type'] ?? 'guide';
+        if (!is_string($contentType) || trim($contentType) === '') {
+            throw new InvalidArgumentException('Content type must be a non-empty string');
+        }
+
         $now = date('c');
         $stmt = $this->db->prepare('
             INSERT OR REPLACE INTO embeddings 
-            (id, type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, type, content_type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ');
 
         $contentForEmbedding = mb_strlen($compiled['content']) <= 700
@@ -85,9 +211,12 @@ class VectorService
 
         $vector = $this->embedWithOllama($contentForEmbedding);
 
+        $this->delete($slug, $contentType);
+
         $stmt->execute([
-            $slug,
-            $compiled['metadata']['type'] ?? 'guide',
+            "{$contentType}:{$slug}",
+            $contentType,
+            $contentType,
             $slug,
             $uuid,
             $compiled['name'],
@@ -108,7 +237,7 @@ class VectorService
             }
 
             $sectionText = $section['title'] . "\n\n" . $section['content'];
-            $sectionId = "{$slug}_section_{$i}";
+            $sectionId = "{$contentType}:{$slug}:section:{$i}";
 
             $doc = new TextDocument(
                 Uuid::v4(),
@@ -127,8 +256,9 @@ class VectorService
                 $isChunk = isset($metadata[Metadata::KEY_PARENT_ID]);
 
                 $stmt->execute([
-                    $isChunk ? "{$sectionId}_chunk_{$chunkIndex}" : $sectionId,
+                    $isChunk ? "{$sectionId}:chunk:{$chunkIndex}" : $sectionId,
                     $isChunk ? 'chunk' : 'section',
+                    $contentType,
                     $slug,
                     null,
                     $compiled['name'],
@@ -169,6 +299,7 @@ class VectorService
                     'score' => round($similarity, 4),
                     'id' => $row['id'],
                     'type' => $row['type'],
+                    'content_type' => $row['content_type'],
                     'slug' => $row['slug'],
                     'name' => $row['name'],
                     'title' => $row['title'],
@@ -188,21 +319,24 @@ class VectorService
         $matches = [];
         foreach ($results as $result) {
             $slug = $result['slug'];
+            $contentType = $result['content_type'];
+            $key = "{$contentType}:{$slug}";
 
-            if (!isset($matches[$slug]) || $matches[$slug]['score'] < $result['score']) {
-                $matches[$slug] = [
+            if (!isset($matches[$key]) || $matches[$key]['score'] < $result['score']) {
+                $matches[$key] = [
                     'score' => $result['score'],
                     'slug' => $slug,
+                    'content_type' => $contentType,
                     'matched_content' => $result['content'],
                 ];
             }
         }
 
-        $parentStmt = $this->db->prepare('SELECT * FROM embeddings WHERE slug = ? AND (type = "guide" OR type = "context") LIMIT 1');
+        $parentStmt = $this->db->prepare('SELECT * FROM embeddings WHERE content_type = ? AND slug = ? AND type = content_type LIMIT 1');
         $parentResults = [];
 
         foreach ($matches as $match) {
-            $parentStmt->execute([$match['slug']]);
+            $parentStmt->execute([$match['content_type'], $match['slug']]);
             $parent = $parentStmt->fetch(PDO::FETCH_ASSOC);
 
             if ($parent) {
@@ -210,6 +344,7 @@ class VectorService
                     'score' => $match['score'],
                     'id' => $parent['id'],
                     'type' => $parent['type'],
+                    'content_type' => $parent['content_type'],
                     'slug' => $parent['slug'],
                     'name' => $parent['name'],
                     'title' => $parent['title'],
@@ -227,11 +362,11 @@ class VectorService
 
     public function listAll(?string $type = null): array
     {
-        $sql = 'SELECT * FROM embeddings WHERE (type = "guide" OR type = "context")';
+        $sql = 'SELECT * FROM embeddings WHERE type = content_type';
         $params = [];
 
         if ($type !== null) {
-            $sql .= ' AND type = ?';
+            $sql .= ' AND content_type = ?';
             $params[] = $type;
         }
 
@@ -265,7 +400,7 @@ class VectorService
     {
         $stmt = $this->db->prepare('
             SELECT * FROM embeddings 
-            WHERE uuid = ? AND (type = "guide" OR type = "context")
+            WHERE uuid = ? AND type = content_type
             LIMIT 1
         ');
         $stmt->execute([$uuid]);
@@ -295,19 +430,45 @@ class VectorService
         return $stmt->fetchColumn() > 0;
     }
 
-    public function delete(string $slug): void
+    public function delete(string $slug, ?string $contentType = null): void
     {
-        $stmt = $this->db->prepare('
-            DELETE FROM embeddings 
-            WHERE slug = ? OR id LIKE ?
-        ');
-        $stmt->execute([$slug, "{$slug}_section_%"]);
+        if (!$this->db->beginTransaction()) {
+            throw new RuntimeException('Failed to start index cleanup transaction');
+        }
+
+        try {
+            if ($contentType === null) {
+                $stmt = $this->db->prepare('DELETE FROM embeddings WHERE slug = ?');
+                $stmt->execute([$slug]);
+            } else {
+                $stmt = $this->db->prepare('DELETE FROM embeddings WHERE content_type = ? AND slug = ?');
+                $stmt->execute([$contentType, $slug]);
+            }
+
+            if (!$this->db->commit()) {
+                throw new RuntimeException('Failed to commit index cleanup transaction');
+            }
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $error;
+        }
     }
 
-    public function exists(string $slug): bool
+    public function exists(string $slug, ?string $contentType = null): bool
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM embeddings WHERE slug = ? AND type != "section"');
-        $stmt->execute([$slug]);
+        $sql = 'SELECT COUNT(*) FROM embeddings WHERE slug = ? AND type = content_type';
+        $params = [$slug];
+
+        if ($contentType !== null) {
+            $sql .= ' AND content_type = ?';
+            $params[] = $contentType;
+        }
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchColumn() > 0;
     }
 
