@@ -138,6 +138,18 @@ All configuration options (OpenCode, custom KB, etc.): [USAGE.md](USAGE.md)
 | **Contexts** | `get_context`, `list_contexts`, `write_context`, `delete_context` |
 | **Utility** | `generate_uuid`, `search_knowledge_base` |
 
+### Delete a guide
+
+Delete a guide by UUID from the CLI:
+
+```bash
+castor delete-guide <uuid> [--force] [--kb=/path]
+```
+
+The command asks for confirmation by default. Use `--force` for scripts and other non-interactive environments. It fails with a clear error when the UUID is missing, is not a valid UUID v4, or does not match a guide.
+
+The MCP tool `delete_guide(uuid)` deletes immediately without confirmation. A successful response includes `uuid`, `slug`, `title`, and `type`. Context deletion is unchanged: use `delete_context(slug)`.
+
 
 
 ## Knowledge Base Structure
@@ -151,6 +163,8 @@ knowledge-base/
 
 Files use Markdown with YAML frontmatter. Details: [USAGE.md](USAGE.md)
 
+The vector index keeps guides and contexts separate, so they can share a slug. After upgrading a knowledge base that previously had such a collision, run `castor embed --force` to rebuild the index if needed.
+
 ## Building from Source
 
 ```bash
@@ -159,11 +173,11 @@ make build
 
 This creates a standalone `./memex` binary with all dependencies included.
 
-**Manual build:**
+The Makefile detects Linux/macOS and x86_64/arm64, then uses Castor's platform-specific PHAR name during compilation. The equivalent Linux x86_64 commands are:
 ```bash
 symfony composer install
-vendor/jolicode/castor/bin/castor repack --app-name=memex --logo-file=.castor.logo.php
-mv memex.linux.phar memex
+symfony php vendor/jolicode/castor/bin/castor repack --app-name=memex --app-version=development --os=linux --arch=amd64 --castor-version=v1.7.0 --logo-file=.castor.logo.php --output-directory=.
+symfony php vendor/jolicode/castor/bin/castor compile memex.linux-amd64.phar --spc-version=2.8.2 --binary-path=memex --os=linux --arch=x86_64 --php-version=8.4 --php-extensions=mbstring,phar,posix,tokenizer,curl,filter,openssl,pdo,pdo_sqlite
 chmod +x memex
 ```
 
@@ -173,7 +187,7 @@ chmod +x memex
 ./memex stats
 ```
 
-**Distribution:** Copy `memex` binary. Requires PHP 8.3+ and Ollama.
+**Distribution:** Copy `memex` binary. Building from source requires PHP 8.4+; the compiled binary includes PHP. Ollama remains required for embeddings.
 
 
 

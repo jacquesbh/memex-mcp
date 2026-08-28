@@ -279,7 +279,7 @@ Content');
         
         $this->vectorService->expects($this->once())
             ->method('delete')
-            ->with('to-delete');
+            ->with('to-delete', 'test');
         
         $result = $this->service->delete('to-delete');
         
@@ -287,6 +287,44 @@ Content');
         $this->assertSame('to-delete', $result['slug']);
         $this->assertSame('Delete Me', $result['title']);
         $this->assertFileDoesNotExist($this->tempDir . '/tests/to-delete.md');
+    }
+
+    public function testDeleteStagesFileAndRestoresItWhenIndexCleanupFails(): void
+    {
+        $contentDir = $this->tempDir . '/tests';
+        mkdir($contentDir, 0755, true);
+        $filePath = $contentDir . '/to-delete.md';
+        $originalContent = "---\ntitle: Delete Me\n---\nOriginal content";
+        file_put_contents($filePath, $originalContent);
+        $stagedDuringCleanup = false;
+
+        $this->compilerService->method('compile')->willReturn([
+            'name' => 'Delete Me',
+            'metadata' => ['title' => 'Delete Me'],
+        ]);
+        $this->vectorService->expects($this->once())
+            ->method('delete')
+            ->with('to-delete', 'test')
+            ->willReturnCallback(function () use ($contentDir, $filePath, $originalContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir($contentDir), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents($contentDir . '/' . $entries[0]) === $originalContent;
+
+                throw new RuntimeException('forced index cleanup failure');
+            });
+
+        try {
+            $this->service->delete('to-delete');
+            $this->fail('Index cleanup failure must abort deletion.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('forced index cleanup failure', $error->getMessage());
+        }
+
+        $this->assertTrue($stagedDuringCleanup, 'The file must be renamed out of its live path before SQLite cleanup.');
+        $this->assertFileExists($filePath);
+        $this->assertSame($originalContent, file_get_contents($filePath));
+        $this->assertSame(['to-delete.md'], array_values(array_diff(scandir($contentDir), ['.', '..'])));
     }
 
     public function testDeleteThrowsOnNonExistentFile(): void
@@ -307,7 +345,7 @@ Content');
         $this->service->delete('missing-dir');
     }
 
-    public function testDeleteThrowsWhenFileDoesNotExist(): void
+    public function testDeleteRejectsSymlinkWhoseTargetSharesContentDirectoryPrefix(): void
     {
         if (PHP_OS_FAMILY === 'Windows') {
             $this->markTestSkipped('Symlink test skipped on Windows');
@@ -316,7 +354,7 @@ Content');
         $contentDir = $this->tempDir . '/tests';
         mkdir($contentDir, 0755, true);
 
-        $outsideDir = $this->tempDir . '/outside';
+        $outsideDir = $this->tempDir . '/tests-outside';
         mkdir($outsideDir, 0755, true);
         $outsideFile = $outsideDir . '/outside.md';
         file_put_contents($outsideFile, "---\ntitle: Outside\n---\nContent");
@@ -326,10 +364,48 @@ Content');
             $this->markTestSkipped('Unable to create symlink');
         }
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Invalid file path for test: symlink');
-        
-        $this->service->delete('symlink');
+        try {
+            $this->service->delete('symlink');
+            $this->fail('A symlink must not be deleted as content.');
+        } catch (RuntimeException $error) {
+            $this->assertSame('Invalid file path for test: symlink', $error->getMessage());
+        }
+
+        $this->assertFileExists($outsideFile);
+        $this->assertTrue(is_link($symlinkPath));
+    }
+
+    public function testDeleteRejectsSymlinkedContentDirectoryWithoutTouchingTarget(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Symlink test skipped on Windows');
+        }
+
+        $outsideDir = sys_get_temp_dir() . '/memex-content-outside-' . uniqid();
+        mkdir($outsideDir, 0755, true);
+        $outsideFile = $outsideDir . '/protected.md';
+        file_put_contents($outsideFile, "---\ntitle: Protected\n---\nContent");
+        $contentDir = $this->tempDir . '/tests';
+
+        if (!symlink($outsideDir, $contentDir)) {
+            $this->removeDirectory($outsideDir);
+            $this->markTestSkipped('Unable to create symlink');
+        }
+
+        $this->vectorService->expects($this->never())->method('delete');
+        $this->compilerService->expects($this->never())->method('compile');
+
+        try {
+            $this->service->delete('protected');
+            $this->fail('A symlinked content directory must not be followed.');
+        } catch (RuntimeException $error) {
+            $this->assertSame('Invalid test directory: symlinks are not allowed', $error->getMessage());
+        } finally {
+            unlink($contentDir);
+        }
+
+        $this->assertFileExists($outsideFile);
+        $this->removeDirectory($outsideDir);
     }
 
     public function testDeleteThrowsWhenFileIsUnreadable(): void
@@ -589,6 +665,37 @@ Content');
         $this->expectExceptionMessage("missing 'uuid'");
 
         $this->service->reindexAll();
+    }
+
+    public function testReindexAllRejectsFrontmatterTypeThatDoesNotMatchContentDirectory(): void
+    {
+        $contentDir = $this->tempDir . '/guides';
+        mkdir($contentDir, 0755, true);
+        $uuid = '550e8400-e29b-41d4-a716-446655440030';
+        file_put_contents(
+            $contentDir . '/wrong-type.md',
+            "---\nuuid: {$uuid}\ntitle: Wrong Type\ntype: context\n---\nContent"
+        );
+        $compiler = $this->createMock(PatternCompilerService::class);
+        $compiler->expects($this->once())->method('compile')->willReturn([
+            'name' => 'Wrong Type',
+            'slug' => 'wrong-type',
+            'metadata' => [
+                'uuid' => $uuid,
+                'type' => 'context',
+            ],
+        ]);
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->never())->method('index');
+        $service = new class($this->tempDir, $compiler, $vectorService) extends ContentService {
+            protected function getContentType(): string { return 'guide'; }
+            protected function getContentDir(): string { return 'guides'; }
+        };
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('type');
+
+        $service->reindexAll();
     }
 
     public function testReindexAllThrowsWhenFileCannotBeRead(): void

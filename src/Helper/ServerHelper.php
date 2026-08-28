@@ -100,7 +100,7 @@ final readonly class ServerHelper
             ->addTool(
                 [DeleteGuideToolExecutor::class, 'execute'],
                 'delete_guide',
-                'Delete a guide from the knowledge base'
+                'Delete a guide from the knowledge base by UUID'
             )
             ->addTool(
                 [GetContextToolExecutor::class, 'execute'],

@@ -133,33 +133,226 @@ final class GuideServiceTest extends TestCase
         $this->assertStringContainsString('updated:', $content);
     }
 
-    public function testDeleteRemovesGuideFile(): void
+    public function testDeleteRemovesIndexedGuideByUuidAfterStagingFileAndCleaningTypedIndex(): void
     {
-        $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
-        $this->service->write($uuid, 'Test Guide', 'Content');
-        
-        $result = $this->service->delete('test-guide');
-        
+        $uuid = Uuid::v4()->toString();
+        $filePath = $this->createGuideFile('indexed-guide', $uuid, 'Indexed Guide');
+        $originalContent = file_get_contents($filePath);
+        $stagedDuringCleanup = false;
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->once())
+            ->method('delete')
+            ->with('indexed-guide', 'guide')
+            ->willReturnCallback(function () use ($filePath, $originalContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir(dirname($filePath)), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents(dirname($filePath) . '/' . $entries[0]) === $originalContent;
+            });
+        $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
+
+        $result = $service->deleteByUuid($uuid);
+
         $this->assertTrue($result['success']);
-        $this->assertSame('test-guide', $result['slug']);
+        $this->assertSame($uuid, $result['uuid']);
+        $this->assertSame('indexed-guide', $result['slug']);
         $this->assertSame('guide', $result['type']);
-        $this->assertFileDoesNotExist($this->testKbPath . '/guides/test-guide.md');
+        $this->assertTrue($stagedDuringCleanup, 'The guide must be renamed out of its live path before SQLite cleanup.');
+        $this->assertFileDoesNotExist($filePath);
     }
 
-    public function testDeleteThrowsOnNonExistingFile(): void
+    public function testDeleteByUuidRestoresStagedGuideWhenIndexCleanupFails(): void
     {
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('guide not found: non-existing');
-        
-        $this->service->delete('non-existing');
+        $uuid = Uuid::v4()->toString();
+        $filePath = $this->createGuideFile('rollback-guide', $uuid, 'Rollback Guide');
+        $originalContent = file_get_contents($filePath);
+        $stagedDuringCleanup = false;
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->once())
+            ->method('delete')
+            ->with('rollback-guide', 'guide')
+            ->willReturnCallback(function () use ($filePath, $originalContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir(dirname($filePath)), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents(dirname($filePath) . '/' . $entries[0]) === $originalContent;
+
+                throw new RuntimeException('forced index cleanup failure');
+            });
+        $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
+
+        try {
+            $service->deleteByUuid($uuid);
+            $this->fail('Index cleanup failure must abort UUID deletion.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('forced index cleanup failure', $error->getMessage());
+        }
+
+        $this->assertTrue($stagedDuringCleanup, 'The guide must be staged before SQLite cleanup.');
+        $this->assertFileExists($filePath);
+        $this->assertSame($originalContent, file_get_contents($filePath));
+        $this->assertSame(['rollback-guide.md'], array_values(array_diff(scandir(dirname($filePath)), ['.', '..'])));
     }
 
-    public function testDeleteThrowsOnPathTraversal(): void
+    public function testDeleteByUuidDoesNotDeleteConcurrentReplacementAtOriginalPath(): void
     {
+        $uuid = Uuid::v4()->toString();
+        $replacementUuid = Uuid::v4()->toString();
+        $filePath = $this->createGuideFile('replaced-guide', $uuid, 'Original Guide');
+        $originalContent = file_get_contents($filePath);
+        $replacementContent = $this->guideMarkdown($replacementUuid, 'Concurrent Replacement');
+        $stagedDuringCleanup = false;
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->once())
+            ->method('delete')
+            ->with('replaced-guide', 'guide')
+            ->willReturnCallback(function () use ($filePath, $originalContent, $replacementContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir(dirname($filePath)), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents(dirname($filePath) . '/' . $entries[0]) === $originalContent;
+                file_put_contents($filePath, $replacementContent);
+            });
+        $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
+
+        $result = $service->deleteByUuid($uuid);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($stagedDuringCleanup, 'The matched guide must be staged before concurrent replacement is possible.');
+        $this->assertFileExists($filePath);
+        $this->assertSame($replacementContent, file_get_contents($filePath));
+        $this->assertSame(['replaced-guide.md'], array_values(array_diff(scandir(dirname($filePath)), ['.', '..'])));
+    }
+
+    public function testDeleteRemovesUnindexedGuideByScanningFiles(): void
+    {
+        $uuid = Uuid::v4()->toString();
+        $filePath = $this->createGuideFile('unindexed-guide', $uuid, 'Unindexed Guide');
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->once())
+            ->method('delete')
+            ->with('unindexed-guide', 'guide');
+        $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
+
+        $result = $service->deleteByUuid($uuid);
+
+        $this->assertSame($uuid, $result['uuid']);
+        $this->assertSame('unindexed-guide', $result['slug']);
+        $this->assertFileDoesNotExist($filePath);
+    }
+
+    public function testDeleteRejectsInvalidUuid(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid UUID v4 format');
+
+        $this->service->deleteByUuid('not-a-uuid');
+    }
+
+    public function testDeleteThrowsWhenUuidIsAbsent(): void
+    {
+        $uuid = Uuid::v4()->toString();
+
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Security: Path traversal detected in slug');
-        
-        $this->service->delete('../../../etc/passwd');
+        $this->expectExceptionMessage("guide not found with UUID: {$uuid}");
+
+        $this->service->deleteByUuid($uuid);
+    }
+
+    public function testDeleteRejectsDuplicateGuideUuidWithoutDeletingEitherFile(): void
+    {
+        $uuid = Uuid::v4()->toString();
+        $firstPath = $this->createGuideFile('first-guide', $uuid, 'First Guide');
+        $secondPath = $this->createGuideFile('second-guide', $uuid, 'Second Guide');
+
+        try {
+            $this->service->deleteByUuid($uuid);
+            $this->fail('A duplicated guide UUID must not select an arbitrary file.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('Duplicate guide UUID', $error->getMessage());
+            $this->assertStringContainsString($uuid, $error->getMessage());
+        }
+
+        $this->assertFileExists($firstPath);
+        $this->assertFileExists($secondPath);
+    }
+
+    public function testContextUuidDoesNotDeleteAnyGuide(): void
+    {
+        $contextUuid = Uuid::v4()->toString();
+        $guideUuid = Uuid::v4()->toString();
+        $guidePath = $this->createGuideFile('unrelated-guide', $guideUuid, 'Unrelated Guide');
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->never())->method('delete');
+        $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
+
+        try {
+            $service->deleteByUuid($contextUuid);
+            $this->fail('A context UUID must not resolve as a guide.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString("guide not found with UUID: {$contextUuid}", $error->getMessage());
+        }
+
+        $this->assertFileExists($guidePath);
+    }
+
+    public function testDeleteRejectsMatchingFileWithInconsistentType(): void
+    {
+        $uuid = Uuid::v4()->toString();
+        $filePath = $this->createGuideFile('wrong-type', $uuid, 'Wrong Type', 'context');
+
+        try {
+            $this->service->deleteByUuid($uuid);
+            $this->fail('A context frontmatter in guides/ must not be deleted as a guide.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('wrong-type.md', $error->getMessage());
+            $this->assertStringContainsString('type', $error->getMessage());
+            $this->assertStringContainsString('guide', $error->getMessage());
+        }
+
+        $this->assertFileExists($filePath);
+    }
+
+    public function testDeleteReportsGuideWithMissingUuidFrontmatter(): void
+    {
+        $requestedUuid = Uuid::v4()->toString();
+        $filePath = $this->testKbPath . '/guides/missing-uuid.md';
+        file_put_contents($filePath, "---\ntitle: Missing UUID\ntype: guide\n---\nContent");
+
+        try {
+            $this->service->deleteByUuid($requestedUuid);
+            $this->fail('An invalid guide frontmatter must be reported during UUID resolution.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('missing-uuid.md', $error->getMessage());
+            $this->assertStringContainsString('uuid', strtolower($error->getMessage()));
+        }
+
+        $this->assertFileExists($filePath);
+    }
+
+    public function testDeleteRejectsSymlinkedGuide(): void
+    {
+        if (PHP_OS_FAMILY === 'Windows') {
+            $this->markTestSkipped('Symlink test skipped on Windows');
+        }
+
+        $uuid = Uuid::v4()->toString();
+        $outsidePath = $this->testKbPath . '/outside.md';
+        file_put_contents($outsidePath, $this->guideMarkdown($uuid, 'Outside Guide'));
+        $symlinkPath = $this->testKbPath . '/guides/symlinked-guide.md';
+        if (!symlink($outsidePath, $symlinkPath)) {
+            $this->markTestSkipped('Unable to create symlink');
+        }
+
+        try {
+            $this->service->deleteByUuid($uuid);
+            $this->fail('A symlinked guide must not be followed or deleted.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('symlink', strtolower($error->getMessage()));
+        }
+
+        $this->assertFileExists($outsidePath);
+        $this->assertFileExists($symlinkPath);
     }
 
     public function testSlugifyConvertsToLowerCase(): void
@@ -174,6 +367,19 @@ final class GuideServiceTest extends TestCase
         $uuid = \Symfony\Component\Uid\Uuid::v4()->toString();
         $result = $this->service->write($uuid, 'Test Guide 123', 'Content');
         $this->assertSame('test-guide-123', $result['slug']);
+    }
+
+    private function createGuideFile(string $slug, string $uuid, string $title, string $type = 'guide'): string
+    {
+        $filePath = $this->testKbPath . '/guides/' . $slug . '.md';
+        file_put_contents($filePath, $this->guideMarkdown($uuid, $title, $type));
+
+        return $filePath;
+    }
+
+    private function guideMarkdown(string $uuid, string $title, string $type = 'guide'): string
+    {
+        return "---\nuuid: {$uuid}\ntitle: {$title}\ntype: {$type}\n---\nContent";
     }
 
     private function recursiveRemoveDirectory(string $dir): void

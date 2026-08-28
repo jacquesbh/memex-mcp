@@ -228,6 +228,41 @@ Add to `~/.config/opencode/opencode.json`:
 
 ---
 
+## Deleting Content
+
+### Delete a Guide from the CLI
+
+Delete a guide by its UUID v4:
+
+```bash
+castor delete-guide <uuid> [--force] [--kb=/path]
+```
+
+Without `--force`, MEMEX shows the UUID and knowledge base path, then asks for confirmation. The default answer is no, so pressing Enter cancels the deletion.
+
+Use `--force` in scripts, CI jobs, and other non-interactive environments:
+
+```bash
+castor delete-guide 550e8400-e29b-41d4-a716-446655440000 --force
+castor delete-guide 550e8400-e29b-41d4-a716-446655440000 --force --kb=/shared/company-kb
+```
+
+The command exits with an error when:
+
+- The required `uuid` argument is missing.
+- The value is not a valid UUID v4.
+- No guide has the requested UUID.
+- Non-interactive mode is used without `--force`.
+
+When using the packaged binary, replace `castor` with `./memex`.
+
+### Delete Content with MCP
+
+- `delete_guide(uuid)` deletes the matching guide immediately. MCP does not ask for confirmation. A successful response includes `uuid`, `slug`, `title`, and `type`.
+- `delete_context(slug)` is unchanged. It deletes a context by slug and does not ask for confirmation.
+
+---
+
 ## Manual Service Testing
 
 ### Indexing Content
@@ -268,9 +303,12 @@ castor stats
 - Database schema errors (e.g., `no such column: uuid`)
 - Corrupted vector database
 - After major MEMEX updates that change the schema
+- After migrating an older index where a guide and context shared a slug
 - Fresh start needed
 
 **Note:** Writing via MCP tools (`write_guide`, `write_context`) automatically indexes content.
+
+The index now isolates guides and contexts by content type. A guide and context can therefore use the same slug without overwriting each other. If an older index contained this collision, `castor embed --force` rebuilds it with the current isolation rules.
 
 ---
 
