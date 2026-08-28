@@ -78,6 +78,7 @@ class GuideService extends ContentService
                     'path' => $realPath,
                     'slug' => $slug,
                     'title' => is_string($metadata['title'] ?? null) ? $metadata['title'] : $compiled['name'],
+                    'identity' => $this->fileIdentity($realPath) + ['hash' => hash('sha256', $content)],
                 ];
             }
         }
@@ -91,11 +92,20 @@ class GuideService extends ContentService
         }
 
         $match = $matches[0];
-        $this->vectorService->delete($match['slug'], 'guide');
-
-        if (is_link($match['path']) || realpath($match['path']) !== $match['path'] || !@unlink($match['path'])) {
-            throw new RuntimeException("Failed to delete guide file: {$match['path']}");
+        if (is_link($match['path']) || realpath($match['path']) !== $match['path']) {
+            throw new RuntimeException("Invalid guide file path: " . basename($match['path']));
         }
+        $content = file_get_contents($match['path']);
+        if ($content === false) {
+            throw new RuntimeException("Failed to read guide file: {$match['path']}");
+        }
+        $compiled = $this->compiler->compile($content, basename($match['path']));
+        $metadata = $compiled['metadata'] ?? [];
+        if (($metadata['type'] ?? null) !== 'guide' || !is_string($metadata['uuid'] ?? null) || strcasecmp($metadata['uuid'], $uuid) !== 0) {
+            throw new RuntimeException("Guide changed during deletion: {$match['path']}");
+        }
+
+        $this->deleteIndexedFile($match['path'], $match['slug'], 'guide', $match['identity']);
 
         return [
             'success' => true,

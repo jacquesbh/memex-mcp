@@ -173,11 +173,11 @@ make build
 
 This creates a standalone `./memex` binary with all dependencies included.
 
-**Manual build:**
+The Makefile detects Linux/macOS and x86_64/arm64, then uses Castor's platform-specific PHAR name during compilation. The equivalent Linux x86_64 commands are:
 ```bash
 symfony composer install
-vendor/jolicode/castor/bin/castor repack --app-name=memex --logo-file=.castor.logo.php
-mv memex.linux.phar memex
+symfony php vendor/jolicode/castor/bin/castor repack --app-name=memex --app-version=development --os=linux --arch=amd64 --castor-version=v1.7.0 --logo-file=.castor.logo.php --output-directory=.
+symfony php vendor/jolicode/castor/bin/castor compile memex.linux-amd64.phar --spc-version=2.8.2 --binary-path=memex --os=linux --arch=x86_64 --php-version=8.4 --php-extensions=mbstring,phar,posix,tokenizer,curl,filter,openssl,pdo,pdo_sqlite
 chmod +x memex
 ```
 
@@ -187,7 +187,7 @@ chmod +x memex
 ./memex stats
 ```
 
-**Distribution:** Copy `memex` binary. Requires PHP 8.3+ and Ollama.
+**Distribution:** Copy `memex` binary. Building from source requires PHP 8.4+; the compiled binary includes PHP. Ollama remains required for embeddings.
 
 
 

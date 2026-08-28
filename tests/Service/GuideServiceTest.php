@@ -133,16 +133,21 @@ final class GuideServiceTest extends TestCase
         $this->assertStringContainsString('updated:', $content);
     }
 
-    public function testDeleteRemovesIndexedGuideByUuidAfterCleaningTypedIndex(): void
+    public function testDeleteRemovesIndexedGuideByUuidAfterStagingFileAndCleaningTypedIndex(): void
     {
         $uuid = Uuid::v4()->toString();
         $filePath = $this->createGuideFile('indexed-guide', $uuid, 'Indexed Guide');
+        $originalContent = file_get_contents($filePath);
+        $stagedDuringCleanup = false;
         $vectorService = $this->createMock(VectorService::class);
         $vectorService->expects($this->once())
             ->method('delete')
             ->with('indexed-guide', 'guide')
-            ->willReturnCallback(function () use ($filePath): void {
-                $this->assertFileExists($filePath, 'The index must be cleaned before the guide file is removed.');
+            ->willReturnCallback(function () use ($filePath, $originalContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir(dirname($filePath)), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents(dirname($filePath) . '/' . $entries[0]) === $originalContent;
             });
         $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
 
@@ -152,7 +157,71 @@ final class GuideServiceTest extends TestCase
         $this->assertSame($uuid, $result['uuid']);
         $this->assertSame('indexed-guide', $result['slug']);
         $this->assertSame('guide', $result['type']);
+        $this->assertTrue($stagedDuringCleanup, 'The guide must be renamed out of its live path before SQLite cleanup.');
         $this->assertFileDoesNotExist($filePath);
+    }
+
+    public function testDeleteByUuidRestoresStagedGuideWhenIndexCleanupFails(): void
+    {
+        $uuid = Uuid::v4()->toString();
+        $filePath = $this->createGuideFile('rollback-guide', $uuid, 'Rollback Guide');
+        $originalContent = file_get_contents($filePath);
+        $stagedDuringCleanup = false;
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->once())
+            ->method('delete')
+            ->with('rollback-guide', 'guide')
+            ->willReturnCallback(function () use ($filePath, $originalContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir(dirname($filePath)), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents(dirname($filePath) . '/' . $entries[0]) === $originalContent;
+
+                throw new RuntimeException('forced index cleanup failure');
+            });
+        $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
+
+        try {
+            $service->deleteByUuid($uuid);
+            $this->fail('Index cleanup failure must abort UUID deletion.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('forced index cleanup failure', $error->getMessage());
+        }
+
+        $this->assertTrue($stagedDuringCleanup, 'The guide must be staged before SQLite cleanup.');
+        $this->assertFileExists($filePath);
+        $this->assertSame($originalContent, file_get_contents($filePath));
+        $this->assertSame(['rollback-guide.md'], array_values(array_diff(scandir(dirname($filePath)), ['.', '..'])));
+    }
+
+    public function testDeleteByUuidDoesNotDeleteConcurrentReplacementAtOriginalPath(): void
+    {
+        $uuid = Uuid::v4()->toString();
+        $replacementUuid = Uuid::v4()->toString();
+        $filePath = $this->createGuideFile('replaced-guide', $uuid, 'Original Guide');
+        $originalContent = file_get_contents($filePath);
+        $replacementContent = $this->guideMarkdown($replacementUuid, 'Concurrent Replacement');
+        $stagedDuringCleanup = false;
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->once())
+            ->method('delete')
+            ->with('replaced-guide', 'guide')
+            ->willReturnCallback(function () use ($filePath, $originalContent, $replacementContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir(dirname($filePath)), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents(dirname($filePath) . '/' . $entries[0]) === $originalContent;
+                file_put_contents($filePath, $replacementContent);
+            });
+        $service = new GuideService($this->testKbPath, new PatternCompilerService(), $vectorService);
+
+        $result = $service->deleteByUuid($uuid);
+
+        $this->assertTrue($result['success']);
+        $this->assertTrue($stagedDuringCleanup, 'The matched guide must be staged before concurrent replacement is possible.');
+        $this->assertFileExists($filePath);
+        $this->assertSame($replacementContent, file_get_contents($filePath));
+        $this->assertSame(['replaced-guide.md'], array_values(array_diff(scandir(dirname($filePath)), ['.', '..'])));
     }
 
     public function testDeleteRemovesUnindexedGuideByScanningFiles(): void

@@ -17,6 +17,7 @@ final class CurlStub
 {
     public static bool $enabled = false;
     public static bool $execReturnsFalse = false;
+    public static ?\Closure $execCallback = null;
     public static int $httpCode = 200;
     public static string $response = '';
     public static string $error = '';
@@ -25,6 +26,7 @@ final class CurlStub
     {
         self::$enabled = false;
         self::$execReturnsFalse = false;
+        self::$execCallback = null;
         self::$httpCode = 200;
         self::$response = '';
         self::$error = '';
@@ -54,6 +56,10 @@ function curl_exec($ch)
 {
     if (!CurlStub::$enabled || !$ch instanceof CurlHandle) {
         return \curl_exec($ch);
+    }
+
+    if (CurlStub::$execCallback !== null) {
+        return (CurlStub::$execCallback)($ch);
     }
 
     if (CurlStub::$execReturnsFalse) {
@@ -95,6 +101,7 @@ function curl_close($ch): void
 namespace Memex\Tests\Service;
 
 use Memex\Service\VectorService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 use Symfony\AI\Store\Document\Transformer\TextSplitTransformer;
@@ -173,6 +180,26 @@ final class VectorServiceTest extends TestCase
         }
     }
 
+    private function withFailingCurlCall(int $failureCall, int &$calls, callable $callback): void
+    {
+        \Memex\Service\CurlStub::$execCallback = function () use ($failureCall, &$calls): string|false {
+            $calls++;
+            if ($calls === $failureCall) {
+                \Memex\Service\CurlStub::$error = 'forced embedding failure';
+
+                return false;
+            }
+
+            return \Memex\Service\CurlStub::$response;
+        };
+
+        try {
+            $callback();
+        } finally {
+            \Memex\Service\CurlStub::$execCallback = null;
+        }
+    }
+
     private function callEmbedWithOllama(string $text): array
     {
         $reflection = new \ReflectionClass($this->service);
@@ -180,6 +207,36 @@ final class VectorServiceTest extends TestCase
         $method->setAccessible(true);
 
         return $method->invoke($this->service, $text);
+    }
+
+    private function database(): \PDO
+    {
+        return new \PDO("sqlite:{$this->tempDir}/.vectors/embeddings.db");
+    }
+
+    private function rowsFor(string $slug, string $contentType): array
+    {
+        $statement = $this->database()->prepare('SELECT * FROM embeddings WHERE slug = ? AND content_type = ? ORDER BY id');
+        $statement->execute([$slug, $contentType]);
+
+        return $statement->fetchAll(\PDO::FETCH_ASSOC);
+    }
+
+    private function compiledDocument(string $name, string $contentType, string $content): array
+    {
+        return [
+            'name' => $name,
+            'content' => $content,
+            'sections' => [
+                ['title' => 'Short section', 'content' => "{$content} short section", 'level' => 2],
+                ['title' => 'Chunked section', 'content' => str_repeat("{$content} chunked section. ", 100), 'level' => 2],
+            ],
+            'metadata' => [
+                'type' => $contentType,
+                'title' => $name,
+                'tags' => ['regression'],
+            ],
+        ];
     }
 
     public function testConstructorCreatesVarDirectory(): void
@@ -239,7 +296,7 @@ final class VectorServiceTest extends TestCase
         new VectorService($knowledgeBasePath, new TextSplitTransformer(700, 200), 512);
 
         $migrated = new \PDO("sqlite:{$vectorsPath}/embeddings.db");
-        $this->assertSame(1, (int) $migrated->query('PRAGMA user_version')->fetchColumn());
+        $this->assertSame(2, (int) $migrated->query('PRAGMA user_version')->fetchColumn());
         $columns = $migrated->query('PRAGMA table_info(embeddings)')->fetchAll(\PDO::FETCH_ASSOC);
         $this->assertContains('content_type', array_column($columns, 'name'));
         $rows = $migrated->query('SELECT id, type, content_type, parent_id FROM embeddings ORDER BY type')->fetchAll(\PDO::FETCH_ASSOC);
@@ -256,6 +313,123 @@ final class VectorServiceTest extends TestCase
         $indexNames = array_column($indexes, 'name');
         $this->assertContains('idx_embeddings_content_type_slug', $indexNames);
         $this->assertContains('idx_embeddings_parent_id', $indexNames);
+    }
+
+    public function testConstructorMigratesDeployedVersionOneSchemaToVersionTwo(): void
+    {
+        $knowledgeBasePath = $this->tempDir . '/version-one';
+        $vectorsPath = $knowledgeBasePath . '/.vectors';
+        mkdir($vectorsPath, 0755, true);
+        $db = new \PDO("sqlite:{$vectorsPath}/embeddings.db");
+        $db->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $db->exec(<<<'SQL'
+            CREATE TABLE embeddings (
+                id TEXT PRIMARY KEY,
+                type TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                uuid TEXT,
+                name TEXT NOT NULL,
+                title TEXT,
+                tags TEXT,
+                content TEXT NOT NULL,
+                vector BLOB NOT NULL,
+                metadata TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT,
+                parent_id TEXT,
+                chunk_index INTEGER
+            );
+            PRAGMA user_version = 1;
+            SQL);
+        $insert = $db->prepare('INSERT INTO embeddings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        $vector = pack('f*', 0.1, 0.2);
+        $insert->execute([
+            'context:deployed', 'context', 'context', 'deployed', '550e8400-e29b-41d4-a716-446655440024',
+            'Deployed', 'Deployed', '[]', 'Parent', $vector, '{}', '2025-01-01', null, null, null,
+        ]);
+        $insert->execute([
+            'context:deployed:section:0', 'section', 'context', 'deployed', null,
+            'Deployed', 'Section', '[]', 'Section', $vector, '{}', '2025-01-01', null, 'context:deployed', 0,
+        ]);
+        $before = $db->query('SELECT * FROM embeddings ORDER BY id')->fetchAll(\PDO::FETCH_ASSOC);
+        $db = null;
+
+        new VectorService($knowledgeBasePath, new TextSplitTransformer(700, 200), 512);
+
+        $migrated = new \PDO("sqlite:{$vectorsPath}/embeddings.db");
+        $migrated->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $this->assertSame(2, (int) $migrated->query('PRAGMA user_version')->fetchColumn());
+        $this->assertSame($before, $migrated->query('SELECT * FROM embeddings ORDER BY id')->fetchAll(\PDO::FETCH_ASSOC));
+
+        $this->expectException(\PDOException::class);
+        $migrated->exec("UPDATE embeddings SET content_type = 'invalid' WHERE id = 'context:deployed'");
+    }
+
+    public function testConstructorDoesNotRunMigrationWhenTransactionCannotStart(): void
+    {
+        $database = new class('sqlite::memory:') extends \PDO {
+            public int $beginTransactionCalls = 0;
+            public array $executedStatements = [];
+
+            public function beginTransaction(): bool
+            {
+                $this->beginTransactionCalls++;
+
+                return false;
+            }
+
+            public function exec(string $statement): int|false
+            {
+                $this->executedStatements[] = $statement;
+
+                return parent::exec($statement);
+            }
+        };
+        $reflection = new \ReflectionClass(VectorService::class);
+        $service = $reflection->newInstanceWithoutConstructor();
+        $reflection->getProperty('db')->setValue($service, $database);
+
+        try {
+            $reflection->getMethod('initialize')->invoke($service);
+            $this->fail('Schema migration must stop when its transaction cannot start.');
+        } catch (\Throwable $error) {
+            $this->assertInstanceOf(RuntimeException::class, $error);
+        }
+
+        $this->assertSame(1, $database->beginTransactionCalls);
+        $this->assertSame([], $database->executedStatements, 'No schema statement may run outside the refused transaction.');
+    }
+
+    public function testConstructorThrowsAndRollsBackWhenMigrationCannotCommit(): void
+    {
+        $database = new class('sqlite::memory:') extends \PDO {
+            public int $commitCalls = 0;
+
+            public function commit(): bool
+            {
+                $this->commitCalls++;
+
+                return false;
+            }
+        };
+        $database->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+        $reflection = new \ReflectionClass(VectorService::class);
+        $service = $reflection->newInstanceWithoutConstructor();
+        $reflection->getProperty('db')->setValue($service, $database);
+
+        try {
+            $reflection->getMethod('initialize')->invoke($service);
+            $this->fail('Schema migration must fail when its transaction cannot commit.');
+        } catch (\Throwable $error) {
+            $this->assertInstanceOf(RuntimeException::class, $error);
+            $this->assertSame('Failed to commit schema migration transaction', $error->getMessage());
+        }
+
+        $this->assertSame(1, $database->commitCalls);
+        $this->assertFalse($database->inTransaction());
+        $this->assertSame(0, (int) $database->query("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'embeddings'")->fetchColumn());
+        $this->assertSame(0, (int) $database->query('PRAGMA user_version')->fetchColumn());
     }
 
     public function testConstructorThrowsWhenVectorsDirectoryCannotBeCreated(): void
@@ -314,6 +488,112 @@ final class VectorServiceTest extends TestCase
         $this->assertCount(1, $results);
         $this->assertSame('test-guide', $results[0]['slug']);
         $this->assertSame('Test Guide', $results[0]['name']);
+    }
+
+    public function testIndexPreservesPreviousParentSectionsAndChunksWhenSectionEmbeddingFails(): void
+    {
+        $this->withCurlStub(['response' => '{"embedding":[0.1,0.2]}'], function (): void {
+            $slug = 'atomic-embedding';
+            $uuid = '550e8400-e29b-41d4-a716-446655440020';
+            $this->service->index($slug, $uuid, $this->compiledDocument('Original', 'guide', 'original'));
+            $before = $this->rowsFor($slug, 'guide');
+            $this->assertEqualsCanonicalizing(['guide', 'section', 'chunk'], array_unique(array_column($before, 'type')));
+
+            \Memex\Service\CurlStub::$response = '{"embedding":[0.3,0.4]}';
+            $calls = 0;
+
+            try {
+                $replacement = $this->compiledDocument('Replacement', 'guide', 'replacement');
+                $replacement['sections'] = [
+                    ['title' => 'Failing section', 'content' => 'replacement section', 'level' => 2],
+                ];
+                $this->withFailingCurlCall(2, $calls, fn() => $this->service->index($slug, $uuid, $replacement));
+                $this->fail('The replacement section embedding must fail.');
+            } catch (RuntimeException $error) {
+                $this->assertStringContainsString('Failed to contact Ollama', $error->getMessage());
+            }
+
+            $this->assertSame($before, $this->rowsFor($slug, 'guide'));
+        });
+    }
+
+    public function testIndexPreservesPreviousParentSectionsAndChunksWhenChunkEmbeddingFails(): void
+    {
+        $this->withCurlStub(['response' => '{"embedding":[0.1,0.2]}'], function (): void {
+            $slug = 'atomic-chunk-embedding';
+            $uuid = '550e8400-e29b-41d4-a716-446655440023';
+            $this->service->index($slug, $uuid, $this->compiledDocument('Original', 'guide', 'original'));
+            $before = $this->rowsFor($slug, 'guide');
+            $this->assertEqualsCanonicalizing(['guide', 'section', 'chunk'], array_unique(array_column($before, 'type')));
+
+            \Memex\Service\CurlStub::$response = '{"embedding":[0.3,0.4]}';
+            $calls = 0;
+
+            try {
+                $replacement = $this->compiledDocument('Replacement', 'guide', 'replacement');
+                $replacement['sections'] = [
+                    ['title' => 'Failing chunks', 'content' => str_repeat('replacement chunk content. ', 100), 'level' => 2],
+                ];
+                $this->withFailingCurlCall(2, $calls, fn() => $this->service->index($slug, $uuid, $replacement));
+                $this->fail('The replacement chunk embedding must fail.');
+            } catch (RuntimeException $error) {
+                $this->assertStringContainsString('Failed to contact Ollama', $error->getMessage());
+            }
+
+            $this->assertSame($before, $this->rowsFor($slug, 'guide'));
+        });
+    }
+
+    public function testIndexPreservesPreviousParentSectionsAndChunksWhenReplacementInsertFails(): void
+    {
+        $this->withCurlStub(['response' => '{"embedding":[0.1,0.2]}'], function (): void {
+            $slug = 'atomic-insert';
+            $uuid = '550e8400-e29b-41d4-a716-446655440021';
+            $this->service->index($slug, $uuid, $this->compiledDocument('Original', 'guide', 'original'));
+            $before = $this->rowsFor($slug, 'guide');
+            $this->assertEqualsCanonicalizing(['guide', 'section', 'chunk'], array_unique(array_column($before, 'type')));
+
+            $this->database()->exec(<<<'SQL'
+                CREATE TRIGGER fail_replacement_section
+                BEFORE INSERT ON embeddings
+                WHEN NEW.type = 'section' AND NEW.title = 'Replacement section'
+                BEGIN
+                    SELECT RAISE(ABORT, 'forced replacement insert failure');
+                END
+                SQL);
+
+            try {
+                $replacement = $this->compiledDocument('Replacement', 'guide', 'replacement');
+                $replacement['sections'] = [
+                    ['title' => 'Replacement section', 'content' => 'replacement section', 'level' => 2],
+                ];
+                $this->service->index($slug, $uuid, $replacement);
+                $this->fail('The replacement section insert must fail.');
+            } catch (\PDOException $error) {
+                $this->assertStringContainsString('forced replacement insert failure', $error->getMessage());
+            }
+
+            $this->assertSame($before, $this->rowsFor($slug, 'guide'));
+        });
+    }
+
+    #[DataProvider('unsupportedContentTypes')]
+    public function testIndexRejectsUnsupportedContentType(string $contentType): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        $this->withCurlStub(['response' => '{"embedding":[0.1,0.2]}'], function () use ($contentType): void {
+            $compiled = $this->compiledDocument('Unsupported', $contentType, 'content');
+            $compiled['sections'] = [];
+            $this->service->index('unsupported', '550e8400-e29b-41d4-a716-446655440022', $compiled);
+        });
+    }
+
+    public static function unsupportedContentTypes(): iterable
+    {
+        yield 'section' => ['section'];
+        yield 'chunk' => ['chunk'];
+        yield 'arbitrary value' => ['article'];
     }
 
     public function testIndexStoresDocumentSections(): void

@@ -289,6 +289,44 @@ Content');
         $this->assertFileDoesNotExist($this->tempDir . '/tests/to-delete.md');
     }
 
+    public function testDeleteStagesFileAndRestoresItWhenIndexCleanupFails(): void
+    {
+        $contentDir = $this->tempDir . '/tests';
+        mkdir($contentDir, 0755, true);
+        $filePath = $contentDir . '/to-delete.md';
+        $originalContent = "---\ntitle: Delete Me\n---\nOriginal content";
+        file_put_contents($filePath, $originalContent);
+        $stagedDuringCleanup = false;
+
+        $this->compilerService->method('compile')->willReturn([
+            'name' => 'Delete Me',
+            'metadata' => ['title' => 'Delete Me'],
+        ]);
+        $this->vectorService->expects($this->once())
+            ->method('delete')
+            ->with('to-delete', 'test')
+            ->willReturnCallback(function () use ($contentDir, $filePath, $originalContent, &$stagedDuringCleanup): void {
+                $entries = array_values(array_diff(scandir($contentDir), ['.', '..']));
+                $stagedDuringCleanup = !file_exists($filePath)
+                    && count($entries) === 1
+                    && file_get_contents($contentDir . '/' . $entries[0]) === $originalContent;
+
+                throw new RuntimeException('forced index cleanup failure');
+            });
+
+        try {
+            $this->service->delete('to-delete');
+            $this->fail('Index cleanup failure must abort deletion.');
+        } catch (RuntimeException $error) {
+            $this->assertStringContainsString('forced index cleanup failure', $error->getMessage());
+        }
+
+        $this->assertTrue($stagedDuringCleanup, 'The file must be renamed out of its live path before SQLite cleanup.');
+        $this->assertFileExists($filePath);
+        $this->assertSame($originalContent, file_get_contents($filePath));
+        $this->assertSame(['to-delete.md'], array_values(array_diff(scandir($contentDir), ['.', '..'])));
+    }
+
     public function testDeleteThrowsOnNonExistentFile(): void
     {
         mkdir($this->tempDir . '/tests', 0755, true);
@@ -627,6 +665,37 @@ Content');
         $this->expectExceptionMessage("missing 'uuid'");
 
         $this->service->reindexAll();
+    }
+
+    public function testReindexAllRejectsFrontmatterTypeThatDoesNotMatchContentDirectory(): void
+    {
+        $contentDir = $this->tempDir . '/guides';
+        mkdir($contentDir, 0755, true);
+        $uuid = '550e8400-e29b-41d4-a716-446655440030';
+        file_put_contents(
+            $contentDir . '/wrong-type.md',
+            "---\nuuid: {$uuid}\ntitle: Wrong Type\ntype: context\n---\nContent"
+        );
+        $compiler = $this->createMock(PatternCompilerService::class);
+        $compiler->expects($this->once())->method('compile')->willReturn([
+            'name' => 'Wrong Type',
+            'slug' => 'wrong-type',
+            'metadata' => [
+                'uuid' => $uuid,
+                'type' => 'context',
+            ],
+        ]);
+        $vectorService = $this->createMock(VectorService::class);
+        $vectorService->expects($this->never())->method('index');
+        $service = new class($this->tempDir, $compiler, $vectorService) extends ContentService {
+            protected function getContentType(): string { return 'guide'; }
+            protected function getContentDir(): string { return 'guides'; }
+        };
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('type');
+
+        $service->reindexAll();
     }
 
     public function testReindexAllThrowsWhenFileCannotBeRead(): void

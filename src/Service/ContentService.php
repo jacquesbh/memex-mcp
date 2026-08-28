@@ -131,17 +131,15 @@ abstract class ContentService
             throw new RuntimeException("Invalid file path for {$this->getContentType()}: {$slug}");
         }
         
+        $identity = $this->fileIdentity($realPath);
         $content = file_get_contents($realPath);
         if ($content === false) {
             throw new RuntimeException("Failed to read {$this->getContentType()} file: {$realPath}");
         }
+        $identity['hash'] = hash('sha256', $content);
         $metadata = $this->compiler->compile($content, basename($realPath));
 
-        if (!unlink($filePath)) {
-            throw new RuntimeException("Failed to delete {$this->getContentType()} file: {$filePath}");
-        }
-        
-        $this->vectorService->delete($slug, $this->getContentType());
+        $this->deleteIndexedFile($realPath, $slug, $this->getContentType(), $identity);
         
         return [
             'success' => true,
@@ -171,11 +169,18 @@ abstract class ContentService
                 throw new RuntimeException("Failed to read {$path}", 0, $error);
             }
             $compiled = $this->compiler->compile($content, $file->getFilename());
-            
+
             if (!isset($compiled['metadata']['uuid'])) {
                 throw new RuntimeException(
                     "File {$file->getFilename()} missing 'uuid' in frontmatter. " .
                     "All files must have a UUID before indexing."
+                );
+            }
+
+            $frontmatterType = $compiled['metadata']['type'] ?? $this->extractFrontmatterType($content);
+            if ($frontmatterType !== $this->getContentType()) {
+                throw new RuntimeException(
+                    "File {$file->getFilename()} frontmatter type must be {$this->getContentType()}"
                 );
             }
             
@@ -193,6 +198,87 @@ abstract class ContentService
         }
         
         return $count;
+    }
+
+    protected function deleteIndexedFile(string $filePath, string $slug, string $contentType, array $expectedIdentity): void
+    {
+        $directory = dirname($filePath);
+        $realDirectory = realpath($directory);
+        if ($realDirectory === false || $realDirectory !== $directory || is_link($directory)) {
+            throw new RuntimeException("Invalid {$contentType} directory: symlinks are not allowed");
+        }
+
+        if (is_link($filePath) || realpath($filePath) !== $filePath || !$this->matchesFileIdentity($filePath, $expectedIdentity)) {
+            throw new RuntimeException("Invalid file path for {$contentType}: {$slug}");
+        }
+
+        do {
+            try {
+                $temporaryPath = $directory . DIRECTORY_SEPARATOR . '.memex-delete-' . bin2hex(random_bytes(16)) . '.tmp';
+            } catch (\Throwable $error) {
+                throw new RuntimeException("Failed to prepare deletion of {$contentType} file: {$filePath}", 0, $error);
+            }
+        } while (file_exists($temporaryPath) || is_link($temporaryPath));
+
+        if (!@rename($filePath, $temporaryPath)) {
+            throw new RuntimeException("Failed to delete {$contentType} file: {$filePath}");
+        }
+
+        if (!$this->matchesFileIdentity($temporaryPath, $expectedIdentity)) {
+            if (!file_exists($filePath) && !is_link($filePath)) {
+                @rename($temporaryPath, $filePath);
+            }
+
+            throw new RuntimeException("File changed during deletion: {$filePath}");
+        }
+
+        try {
+            $this->vectorService->delete($slug, $contentType);
+        } catch (\Throwable $error) {
+            if (!file_exists($filePath) && !is_link($filePath)) {
+                if (!@rename($temporaryPath, $filePath)) {
+                    throw new RuntimeException("Failed to restore {$contentType} file after index cleanup failure: {$filePath}", 0, $error);
+                }
+            }
+
+            throw $error;
+        }
+
+        if (!@unlink($temporaryPath)) {
+            throw new RuntimeException("Failed to delete {$contentType} file: {$filePath}");
+        }
+    }
+
+    protected function fileIdentity(string $filePath): array
+    {
+        $stat = @lstat($filePath);
+        if ($stat === false || !is_file($filePath)) {
+            throw new RuntimeException("Invalid file path: {$filePath}");
+        }
+
+        return [
+            'device' => $stat['dev'],
+            'inode' => $stat['ino'],
+        ];
+    }
+
+    private function matchesFileIdentity(string $filePath, array $expectedIdentity): bool
+    {
+        $actualIdentity = $this->fileIdentity($filePath);
+        if ($actualIdentity !== array_intersect_key($expectedIdentity, $actualIdentity)) {
+            return false;
+        }
+
+        return !isset($expectedIdentity['hash']) || hash_file('sha256', $filePath) === $expectedIdentity['hash'];
+    }
+
+    private function extractFrontmatterType(string $content): ?string
+    {
+        if (preg_match('/\A---\R.*?^type:\s*["\']?([^"\'\s]+)["\']?\s*$.*?^---\s*$/ms', $content, $matches) !== 1) {
+            return null;
+        }
+
+        return $matches[1];
     }
 
     protected function getFullContentDir(): string

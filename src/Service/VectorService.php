@@ -14,7 +14,7 @@ use Symfony\Component\Uid\Uuid;
 
 class VectorService
 {
-    private const SCHEMA_VERSION = 1;
+    private const SCHEMA_VERSION = 2;
 
     private PDO $db;
     private string $ollamaUrl = 'http://localhost:11434';
@@ -54,21 +54,25 @@ class VectorService
             throw new RuntimeException("Unsupported embeddings database schema version: {$version}");
         }
 
-        if ($version === self::SCHEMA_VERSION) {
+        if ($version === self::SCHEMA_VERSION && $this->hasContentTypeConstraint()) {
             return;
         }
 
-        $this->db->beginTransaction();
+        if (!$this->db->beginTransaction()) {
+            throw new RuntimeException('Failed to start schema migration transaction');
+        }
 
         try {
             if ($this->tableExists('embeddings')) {
-                $this->migrateLegacySchema();
+                $this->migrateSchema();
             } else {
                 $this->createSchema();
             }
 
             $this->db->exec('PRAGMA user_version = ' . self::SCHEMA_VERSION);
-            $this->db->commit();
+            if (!$this->db->commit()) {
+                throw new RuntimeException('Failed to commit schema migration transaction');
+            }
         } catch (\Throwable $error) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -86,13 +90,27 @@ class VectorService
         return (int) $stmt->fetchColumn() > 0;
     }
 
+    private function hasContentTypeConstraint(): bool
+    {
+        if (!$this->tableExists('embeddings')) {
+            return false;
+        }
+
+        $stmt = $this->db->prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?");
+        $stmt->execute(['embeddings']);
+        $sql = $stmt->fetchColumn();
+
+        return is_string($sql)
+            && preg_match('/content_type\s+TEXT\s+NOT\s+NULL\s+CHECK\s*\(\s*content_type\s+IN\s*\(\s*[\"\']guide[\"\']\s*,\s*[\"\']context[\"\']\s*\)\s*\)/i', $sql) === 1;
+    }
+
     private function createSchema(): void
     {
         $this->db->exec("
             CREATE TABLE IF NOT EXISTS embeddings (
                 id TEXT PRIMARY KEY,
                 type TEXT NOT NULL,
-                content_type TEXT NOT NULL,
+                content_type TEXT NOT NULL CHECK (content_type IN ('guide', 'context')),
                 slug TEXT NOT NULL,
                 uuid TEXT,
                 name TEXT NOT NULL,
@@ -123,13 +141,16 @@ class VectorService
         ');
     }
 
-    private function migrateLegacySchema(): void
+    private function migrateSchema(): void
     {
+        $columns = $this->db->query('PRAGMA table_info(embeddings)')->fetchAll(PDO::FETCH_ASSOC);
+        $hasContentType = in_array('content_type', array_column($columns, 'name'), true);
+
         $this->db->exec('
             CREATE TABLE embeddings_migrated (
                 id TEXT PRIMARY KEY,
                 type TEXT NOT NULL,
-                content_type TEXT NOT NULL,
+                content_type TEXT NOT NULL CHECK (content_type IN ("guide", "context")),
                 slug TEXT NOT NULL,
                 uuid TEXT,
                 name TEXT NOT NULL,
@@ -145,7 +166,7 @@ class VectorService
             )
         ');
 
-        $contentType = '
+        $contentType = $hasContentType ? 'legacy.content_type' : '
             CASE
                 WHEN legacy.type IN ("guide", "context") THEN legacy.type
                 ELSE COALESCE(
@@ -160,12 +181,16 @@ class VectorService
                 )
             END
         ';
+        $id = $hasContentType ? 'legacy.id' : "({$contentType}) || ':' || legacy.id";
+        $parentId = $hasContentType
+            ? 'legacy.parent_id'
+            : "CASE WHEN legacy.parent_id IS NULL THEN NULL ELSE ({$contentType}) || ':' || legacy.parent_id END";
 
         $this->db->exec("
             INSERT INTO embeddings_migrated
                 (id, type, content_type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
             SELECT
-                ({$contentType}) || ':' || legacy.id,
+                {$id},
                 legacy.type,
                 {$contentType},
                 legacy.slug,
@@ -178,10 +203,7 @@ class VectorService
                 legacy.metadata,
                 legacy.created_at,
                 legacy.updated_at,
-                CASE
-                    WHEN legacy.parent_id IS NULL THEN NULL
-                    ELSE ({$contentType}) || ':' || legacy.parent_id
-                END,
+                {$parentId},
                 legacy.chunk_index
             FROM embeddings legacy
         ");
@@ -193,27 +215,18 @@ class VectorService
 
     public function index(string $slug, string $uuid, array $compiled): void
     {
-        $contentType = $compiled['metadata']['type'] ?? 'guide';
-        if (!is_string($contentType) || trim($contentType) === '') {
-            throw new InvalidArgumentException('Content type must be a non-empty string');
+        $contentType = $compiled['metadata']['type'] ?? null;
+        if (!is_string($contentType) || !in_array($contentType, ['guide', 'context'], true)) {
+            throw new InvalidArgumentException('Content type must be guide or context');
         }
 
         $now = date('c');
-        $stmt = $this->db->prepare('
-            INSERT OR REPLACE INTO embeddings 
-            (id, type, content_type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ');
-
         $contentForEmbedding = mb_strlen($compiled['content']) <= 700
             ? $compiled['content']
             : mb_substr($compiled['content'], 0, 700);
 
         $vector = $this->embedWithOllama($contentForEmbedding);
-
-        $this->delete($slug, $contentType);
-
-        $stmt->execute([
+        $rows = [[
             "{$contentType}:{$slug}",
             $contentType,
             $contentType,
@@ -229,7 +242,7 @@ class VectorService
             $now,
             null,
             null,
-        ]);
+        ]];
 
         foreach ($compiled['sections'] as $i => $section) {
             if (empty(trim($section['content']))) {
@@ -255,7 +268,7 @@ class VectorService
                 $metadata = $chunkDoc->getMetadata();
                 $isChunk = isset($metadata[Metadata::KEY_PARENT_ID]);
 
-                $stmt->execute([
+                $rows[] = [
                     $isChunk ? "{$sectionId}:chunk:{$chunkIndex}" : $sectionId,
                     $isChunk ? 'chunk' : 'section',
                     $contentType,
@@ -276,10 +289,38 @@ class VectorService
                     $now,
                     $isChunk ? $sectionId : null,
                     $isChunk ? $chunkIndex : null,
-                ]);
+                ];
 
                 $chunkIndex++;
             }
+        }
+
+        if (!$this->db->beginTransaction()) {
+            throw new RuntimeException('Failed to start index replacement transaction');
+        }
+
+        try {
+            $deleteStmt = $this->db->prepare('DELETE FROM embeddings WHERE content_type = ? AND slug = ?');
+            $deleteStmt->execute([$contentType, $slug]);
+            $insertStmt = $this->db->prepare('
+                INSERT INTO embeddings
+                (id, type, content_type, slug, uuid, name, title, tags, content, vector, metadata, created_at, updated_at, parent_id, chunk_index)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ');
+
+            foreach ($rows as $row) {
+                $insertStmt->execute($row);
+            }
+
+            if (!$this->db->commit()) {
+                throw new RuntimeException('Failed to commit index replacement transaction');
+            }
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+
+            throw $error;
         }
     }
 
